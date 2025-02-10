@@ -70,5 +70,7 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
         }
     }
 
+    println!("Node {node_name} shutting down.");
+
 	Ok(())
 }

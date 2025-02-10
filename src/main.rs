@@ -4,6 +4,7 @@ use futures::{
     Future,
 };
 use r2r::{nav_msgs::msg::Odometry, Context, Node, QosProfile};
+use r2r::std_msgs::msg::String as Ros2String;
 use trajectory_mapper::Trajectory;
 
 use std::env;
@@ -46,17 +47,19 @@ fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
 
 fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     let odom_topic_name = format!("/{robot_name}/odom");
-    let node_name = format!("{robot_name}_trajectory_mapper");
+    let estimate_topic_name = format!("/{robot_name}_pose_estimate");
+	let node_name = format!("{robot_name}_trajectory_mapper");
     let context = Context::create()?;
     let mut node = Node::create(context, node_name.as_str(), "")?;
-    let qos = QosProfile::sensor_data();
-    let mut odom_subscriber = node.subscribe::<Odometry>(odom_topic_name.as_str(), qos)?;
+    let mut odom_subscriber = node.subscribe::<Odometry>(odom_topic_name.as_str(), QosProfile::sensor_data())?;
     let mut map = Trajectory::default();
 
 	let running = Arc::new(AtomicCell::new(true));
     let r = running.clone();
 	ctrlc::set_handler(move || r.store(false))?;
 
+	let publisher = node.create_publisher::<Ros2String>(estimate_topic_name.as_str(), QosProfile::sensor_data())?;
+	println!("Starting {node_name}; subscribe to {estimate_topic_name}");
     while running.load() {
         node.spin_once(std::time::Duration::from_millis(period));
         let mut future = Box::pin(odom_subscriber.next());
@@ -64,10 +67,13 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
             futures::task::noop_waker_ref(),
         )) {
             map.add(odom_msg.into());
-            println!("{:?}", map.estimate());
-        } else {
-            println!("No message");
-        }
+			if let Some(estimate) = map.estimate() {
+				let msg = Ros2String {data: format!("{estimate:?}")};
+				if let Err(e) = publisher.publish(&msg) {
+					eprintln!("Error publishing {estimate:?}: {e}");
+				}
+			}
+        } 
     }
 
     println!("Node {node_name} shutting down.");

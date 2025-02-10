@@ -4,8 +4,12 @@ use futures::{
     Future,
 };
 use r2r::{nav_msgs::msg::Odometry, Context, Node, QosProfile};
+use trajectory_mapper::Trajectory;
 
 use std::env;
+use std::sync::Arc;
+
+use crossbeam::atomic::AtomicCell;
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -47,16 +51,24 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     let mut node = Node::create(context, node_name.as_str(), "")?;
     let qos = QosProfile::sensor_data();
     let mut odom_subscriber = node.subscribe::<Odometry>(odom_topic_name.as_str(), qos)?;
+    let mut map = Trajectory::default();
 
-    loop {
+	let running = Arc::new(AtomicCell::new(true));
+    let r = running.clone();
+	ctrlc::set_handler(move || r.store(false))?;
+
+    while running.load() {
         node.spin_once(std::time::Duration::from_millis(period));
         let mut future = Box::pin(odom_subscriber.next());
         if let Poll::Ready(Some(odom_msg)) = future.as_mut().poll(&mut FuturesContext::from_waker(
             futures::task::noop_waker_ref(),
         )) {
-            println!("{odom_msg:?}");
+            map.add(odom_msg.into());
+            println!("{:?}", map.estimate());
         } else {
             println!("No message");
         }
     }
+
+	Ok(())
 }

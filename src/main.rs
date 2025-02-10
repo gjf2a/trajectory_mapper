@@ -5,7 +5,7 @@ use futures::{
 };
 use r2r::{nav_msgs::msg::Odometry, Context, Node, QosProfile};
 use r2r::std_msgs::msg::String as Ros2String;
-use trajectory_mapper::Trajectory;
+use trajectory_mapper::TrajectoryBuilder;
 
 use std::env;
 use std::sync::Arc;
@@ -52,13 +52,14 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     let context = Context::create()?;
     let mut node = Node::create(context, node_name.as_str(), "")?;
     let mut odom_subscriber = node.subscribe::<Odometry>(odom_topic_name.as_str(), QosProfile::sensor_data())?;
-    let mut map = Trajectory::default();
+    let mut map = TrajectoryBuilder::default().build();
 
 	let running = Arc::new(AtomicCell::new(true));
     let r = running.clone();
 	ctrlc::set_handler(move || r.store(false))?;
 
 	let publisher = node.create_publisher::<Ros2String>(estimate_topic_name.as_str(), QosProfile::sensor_data())?;
+	println!("Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n");
 	println!("Starting {node_name}; subscribe to {estimate_topic_name}");
     while running.load() {
         node.spin_once(std::time::Duration::from_millis(period));

@@ -1,4 +1,9 @@
-use futures::stream::StreamExt;
+//use futures::stream::StreamExt;
+use futures::{
+    stream::StreamExt,
+    task::{Context as FuturesContext, Poll},
+    Future,
+};
 use r2r::geometry_msgs::msg::TwistStamped;
 use r2r::{nav_msgs::msg::Odometry, Context, Node, QosProfile};
 use r2r::{std_msgs::msg::String as Ros2String, Publisher};
@@ -54,10 +59,11 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     let node_name = format!("{robot_name}_trajectory_mapper");
     let context = Context::create()?;
     let mut node = Node::create(context, node_name.as_str(), "")?;
-    let odom_subscriber =
+    let mut odom_subscriber =
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
     let vel_subscriber = node.subscribe::<TwistStamped>(vel_topic.as_str(), QosProfile::sensor_data())?;
-    let map = Arc::new(Mutex::new(TrajectoryBuilder::default().build()));
+    //let map = Arc::new(Mutex::new(TrajectoryBuilder::default().build()));
+    let mut map = TrajectoryBuilder::default().build();
 
     let running = Arc::new(AtomicCell::new(true));
     let r = running.clone();
@@ -67,6 +73,11 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
         .create_publisher::<Ros2String>(estimate_topic_name.as_str(), QosProfile::sensor_data())?;
     println!("Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n");
     println!("Starting {node_name}; subscribe to {estimate_topic_name}");
+    while running.load() {
+        node.spin_once(std::time::Duration::from_millis(period));
+        odom_handler(&mut odom_subscriber, &mut map, &publisher);
+    }
+    /*
     smol::block_on(async {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();
         while running.load() {
@@ -74,12 +85,42 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
             println!("Spinning...");
         }
     });
+    */
 
     println!("Node {node_name} shutting down.");
 
     Ok(())
 }
 
+fn odom_handler<S>(
+    odom_subscriber: &mut S,
+    map: &mut Trajectory,
+    publisher: &Publisher<Ros2String>,
+) where
+    S: Stream<Item = Odometry> + Unpin,
+{
+    loop {
+        println!("awaiting...");
+        let mut future = Box::pin(odom_subscriber.next());
+        if let Poll::Ready(Some(odom_msg)) = future.as_mut().poll(&mut FuturesContext::from_waker(futures::task::noop_waker_ref())) {
+            println!("received {odom_msg:?}");
+            if let Some(data) = {
+                println!("Locked map");
+                map.add(odom_msg.into());
+                println!("Updated map");
+                map.estimate().map(|estimate| format!("{estimate:?}"))
+            } {
+                println!("Publishing {data}");
+                let msg = Ros2String { data };
+                if let Err(e) = publisher.publish(&msg) {
+                    eprintln!("Error publishing {msg:?}: {e}");
+                }
+            }
+        }
+    }
+}
+
+/*
 async fn odom_handler<S>(
     mut odom_subscriber: S,
     map: Arc<Mutex<Trajectory>>,
@@ -107,3 +148,4 @@ async fn odom_handler<S>(
         }
     }
 }
+*/

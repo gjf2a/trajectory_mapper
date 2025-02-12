@@ -1,4 +1,5 @@
 use futures::stream::StreamExt;
+use r2r::geometry_msgs::msg::TwistStamped;
 use r2r::{nav_msgs::msg::Odometry, Context, Node, QosProfile};
 use r2r::{std_msgs::msg::String as Ros2String, Publisher};
 use trajectory_mapper::{Trajectory, TrajectoryBuilder};
@@ -47,13 +48,15 @@ fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
 }
 
 fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
-    let odom_topic_name = format!("/{robot_name}/odom");
+    let odom_topic = format!("/{robot_name}/odom");
+    let vel_topic = format!("/{robot_name}/cmd_vel_stamped");
     let estimate_topic_name = format!("/{robot_name}_pose_estimate");
     let node_name = format!("{robot_name}_trajectory_mapper");
     let context = Context::create()?;
     let mut node = Node::create(context, node_name.as_str(), "")?;
     let odom_subscriber =
-        node.subscribe::<Odometry>(odom_topic_name.as_str(), QosProfile::sensor_data())?;
+        node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
+    let vel_subscriber = node.subscribe::<TwistStamped>(vel_topic.as_str(), QosProfile::sensor_data())?;
     let map = Arc::new(Mutex::new(TrajectoryBuilder::default().build()));
 
     let running = Arc::new(AtomicCell::new(true));

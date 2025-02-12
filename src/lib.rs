@@ -85,7 +85,6 @@ impl Trajectory {
         self.path.push(pose);
         self.free_space
             .set_circle(pose.pos, self.robot_radius_meters, true);
-        todo!("Incorporate a turn into turning_points by looking at the last couple of points to see if you turned")
     }
 
     pub fn estimate(&self) -> Option<RobotPose> {

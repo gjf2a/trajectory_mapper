@@ -71,6 +71,7 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();
         while running.load() {
             node.spin_once(std::time::Duration::from_millis(period));
+            println!("Spinning...");
         }
     });
 

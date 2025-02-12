@@ -1,6 +1,6 @@
 use bits::BitArray;
 use point::{FloatPoint, GridPoint};
-use r2r::nav_msgs::msg::Odometry;
+use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
 pub mod point;
 
@@ -24,6 +24,23 @@ impl From<Odometry> for RobotPose {
         result.theta =
             (q0 * q3 + q1 * q2).atan2(q0.powf(2.0) + q1.powf(2.0) - q2.powf(2.0) - q3.powf(2.0));
         result
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub enum RobotMoveState {
+    #[default]
+    Forward,
+    Turning
+}
+
+impl From<TwistStamped> for RobotMoveState {
+    fn from(value: TwistStamped) -> Self {
+        if value.twist.angular.z > 0.0 {
+            Self::Turning
+        } else {
+            Self::Forward
+        }
     }
 }
 
@@ -64,6 +81,7 @@ impl TrajectoryBuilder {
 
     pub fn build(&self) -> Trajectory {
         Trajectory {
+            move_state: RobotMoveState::default(),
             robot_radius_meters: self.robot_radius_meters,
             path: Vec::new(),
             turning_points: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
@@ -78,13 +96,24 @@ pub struct Trajectory {
     free_space: BinaryGrid,
     turning_points: BinaryGrid,
     robot_radius_meters: f64,
+    move_state: RobotMoveState,
 }
 
 impl Trajectory {
-    pub fn add(&mut self, pose: RobotPose) {
-        self.path.push(pose);
-        self.free_space
-            .set_circle(pose.pos, self.robot_radius_meters, true);
+    pub fn add_pose(&mut self, pose: RobotPose) {
+        match self.move_state {
+            RobotMoveState::Forward => {
+                self.path.push(pose);
+                self.free_space.set_circle(pose.pos, self.robot_radius_meters, true);
+            }
+            RobotMoveState::Turning => {
+                self.turning_points.set(self.turning_points.meters2cell(pose.pos), true);
+            }
+        }
+    }
+
+    pub fn add_move(&mut self, move_state: RobotMoveState) {
+        self.move_state = move_state;
     }
 
     pub fn estimate(&self) -> Option<RobotPose> {

@@ -11,9 +11,6 @@ use smol::{lock::Mutex, stream::Stream};
 
 use crossbeam::atomic::AtomicCell;
 
-// TODO: Subscribe to a topic to which motor TwistStamped messages are published.
-//       Then use those to determine when a turn is occurring.
-
 fn main() {
     let args = env::args().collect::<Vec<_>>();
     if args.len() < 2 {
@@ -69,9 +66,9 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     println!("Starting {node_name}; subscribe to {estimate_topic_name}");
     smol::block_on(async {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();
+        smol::spawn(vel_handler(vel_subscriber, map.clone())).detach();
         while running.load() {
             node.spin_once(std::time::Duration::from_millis(period));
-            println!("Spinning...");
         }
     });
 
@@ -88,17 +85,12 @@ async fn odom_handler<S>(
     S: Stream<Item = Odometry> + Unpin,
 {
     loop {
-        println!("awaiting...");
         if let Some(odom_msg) = odom_subscriber.next().await {
-            println!("received {odom_msg:?}");
             if let Some(data) = {
                 let mut map = map.lock().await;
-                println!("Locked map");
-                map.add(odom_msg.into());
-                println!("Updated map");
+                map.add_pose(odom_msg.into());
                 map.estimate().map(|estimate| format!("{estimate:?}"))
             } {
-                println!("Publishing {data}");
                 let msg = Ros2String { data };
                 if let Err(e) = publisher.publish(&msg) {
                     eprintln!("Error publishing {msg:?}: {e}");
@@ -108,3 +100,12 @@ async fn odom_handler<S>(
     }
 }
 
+async fn vel_handler<S>(mut vel_subscriber: S, map: Arc<Mutex<Trajectory>>) where
+S: Stream<Item = TwistStamped> + Unpin,{
+    loop {
+        if let Some(vel_msg) = vel_subscriber.next().await {
+            let mut map = map.lock().await;
+            map.add_move(vel_msg.into());
+        }
+    }
+}

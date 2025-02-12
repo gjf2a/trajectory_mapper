@@ -88,12 +88,17 @@ async fn odom_handler<S>(
     S: Stream<Item = Odometry> + Unpin,
 {
     loop {
+        println!("awaiting...");
         if let Some(odom_msg) = odom_subscriber.next().await {
+            println!("received {odom_msg:?}");
             if let Some(data) = {
                 let mut map = map.lock().await;
+                println!("Locked map");
                 map.add(odom_msg.into());
+                println!("Updated map");
                 map.estimate().map(|estimate| format!("{estimate:?}"))
             } {
+                println!("Publishing {data}");
                 let msg = Ros2String { data };
                 if let Err(e) = publisher.publish(&msg) {
                     eprintln!("Error publishing {msg:?}: {e}");

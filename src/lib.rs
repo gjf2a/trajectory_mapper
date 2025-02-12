@@ -30,7 +30,7 @@ impl From<Odometry> for RobotPose {
 pub struct TrajectoryBuilder {
     robot_radius_meters: f64,
     width: f64,
-    height: f64, 
+    height: f64,
     meters_per_cell: f64,
 }
 
@@ -64,10 +64,10 @@ impl TrajectoryBuilder {
 
     pub fn build(&self) -> Trajectory {
         Trajectory {
-            robot_radius_meters: self.robot_radius_meters, 
-            path: Vec::new(), 
+            robot_radius_meters: self.robot_radius_meters,
+            path: Vec::new(),
             turning_points: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
-            free_space: BinaryGrid::new(self.width, self.height, self.meters_per_cell)
+            free_space: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
         }
     }
 }
@@ -83,7 +83,8 @@ pub struct Trajectory {
 impl Trajectory {
     pub fn add(&mut self, pose: RobotPose) {
         self.path.push(pose);
-        self.free_space.set_circle(pose.pos, self.robot_radius_meters, true);
+        self.free_space
+            .set_circle(pose.pos, self.robot_radius_meters, true);
         todo!("Incorporate a turn into turning_points by looking at the last couple of points to see if you turned")
     }
 

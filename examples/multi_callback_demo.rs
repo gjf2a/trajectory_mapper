@@ -21,8 +21,6 @@ fn main() {
     smol::block_on(async {
         smol::spawn(async_function_1()).detach();
         smol::spawn(async_function_2()).detach();
-        loop {
-            Timer::after(Duration::from_secs(3600)).await;
-        }
+        loop {}
     });
 }

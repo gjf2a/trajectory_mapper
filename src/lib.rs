@@ -4,10 +4,29 @@ use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
 pub mod point;
 
+/*
+Message concept: 
+float64 x
+float64 y
+float64 theta
+uint64 columns
+uint64 rows
+float64 meters_per_cell
+uint64[] free_space
+uint64[] turning_points
+ */
+
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 pub struct RobotPose {
     pub pos: FloatPoint,
     pub theta: f64,
+}
+
+impl RobotPose {
+    pub fn moved_forward(&self, distance: f64) -> Self {
+        let (x, y) = (self.pos[0] + distance * self.theta.cos(), self.pos[1] + distance * self.theta.sin());
+        Self {pos: FloatPoint::new([x, y]), theta: self.theta}
+    }
 }
 
 impl From<Odometry> for RobotPose {
@@ -83,31 +102,40 @@ impl TrajectoryBuilder {
         Trajectory {
             move_state: RobotMoveState::default(),
             robot_radius_meters: self.robot_radius_meters,
-            path: Vec::new(),
+            position: None,
             turning_points: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             free_space: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
+            turn_in_progress: false,
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Trajectory {
-    path: Vec<RobotPose>,
+    position: Option<RobotPose>,
     free_space: BinaryGrid,
     turning_points: BinaryGrid,
     robot_radius_meters: f64,
     move_state: RobotMoveState,
+    turn_in_progress: bool,
 }
 
 impl Trajectory {
     pub fn add_pose(&mut self, pose: RobotPose) {
         match self.move_state {
             RobotMoveState::Forward => {
-                self.path.push(pose);
+                self.turn_in_progress = false;
+                self.position = Some(pose);
                 self.free_space.set_circle(pose.pos, self.robot_radius_meters, true);
             }
             RobotMoveState::Turning => {
-                self.turning_points.set(self.turning_points.meters2cell(pose.pos), true);
+                if !self.turn_in_progress {
+                    self.turn_in_progress = true;
+                    if let Some(prev) = self.position {
+                        let obstacle = prev.moved_forward(self.robot_radius_meters);
+                        self.turning_points.set(self.turning_points.meters2cell(obstacle.pos), true);
+                    }
+                }
             }
         }
     }
@@ -117,7 +145,7 @@ impl Trajectory {
     }
 
     pub fn estimate(&self) -> Option<RobotPose> {
-        self.path.last().copied()
+        self.position
     }
 }
 

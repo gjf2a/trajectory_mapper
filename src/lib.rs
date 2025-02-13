@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bits::BitArray;
 use point::{FloatPoint, GridPoint};
 use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
@@ -5,7 +7,7 @@ use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 pub mod point;
 
 /*
-Message concept: 
+Eventually, I would like to create a ROS2 message like this:
 float64 x
 float64 y
 float64 theta
@@ -13,7 +15,7 @@ uint64 columns
 uint64 rows
 float64 meters_per_cell
 uint64[] free_space
-uint64[] turning_points
+uint64[] obstacles
  */
 
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
@@ -24,8 +26,14 @@ pub struct RobotPose {
 
 impl RobotPose {
     pub fn moved_forward(&self, distance: f64) -> Self {
-        let (x, y) = (self.pos[0] + distance * self.theta.cos(), self.pos[1] + distance * self.theta.sin());
-        Self {pos: FloatPoint::new([x, y]), theta: self.theta}
+        let (x, y) = (
+            self.pos[0] + distance * self.theta.cos(),
+            self.pos[1] + distance * self.theta.sin(),
+        );
+        Self {
+            pos: FloatPoint::new([x, y]),
+            theta: self.theta,
+        }
     }
 }
 
@@ -50,7 +58,7 @@ impl From<Odometry> for RobotPose {
 pub enum RobotMoveState {
     #[default]
     Forward,
-    Turning
+    Turning,
 }
 
 impl From<TwistStamped> for RobotMoveState {
@@ -98,12 +106,12 @@ impl TrajectoryBuilder {
         self
     }
 
-    pub fn build(&self) -> Trajectory {
-        Trajectory {
+    pub fn build(&self) -> TrajectoryMap {
+        TrajectoryMap {
             move_state: RobotMoveState::default(),
             robot_radius_meters: self.robot_radius_meters,
             position: None,
-            turning_points: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
+            obstacles: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             free_space: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             turn_in_progress: false,
         }
@@ -111,29 +119,31 @@ impl TrajectoryBuilder {
 }
 
 #[derive(Clone, Debug)]
-pub struct Trajectory {
+pub struct TrajectoryMap {
     position: Option<RobotPose>,
     free_space: BinaryGrid,
-    turning_points: BinaryGrid,
+    obstacles: BinaryGrid,
     robot_radius_meters: f64,
     move_state: RobotMoveState,
     turn_in_progress: bool,
 }
 
-impl Trajectory {
+impl TrajectoryMap {
     pub fn add_pose(&mut self, pose: RobotPose) {
         match self.move_state {
             RobotMoveState::Forward => {
                 self.turn_in_progress = false;
                 self.position = Some(pose);
-                self.free_space.set_circle(pose.pos, self.robot_radius_meters, true);
+                self.free_space
+                    .set_circle(pose.pos, self.robot_radius_meters, true);
             }
             RobotMoveState::Turning => {
                 if !self.turn_in_progress {
                     self.turn_in_progress = true;
                     if let Some(prev) = self.position {
                         let obstacle = prev.moved_forward(self.robot_radius_meters);
-                        self.turning_points.set(self.turning_points.meters2cell(obstacle.pos), true);
+                        self.obstacles
+                            .set(self.obstacles.meters2cell(obstacle.pos), true);
                     }
                 }
             }
@@ -147,6 +157,29 @@ impl Trajectory {
     pub fn estimate(&self) -> Option<RobotPose> {
         self.position
     }
+
+    pub fn as_python_dict(&self) -> Option<String> {
+        self.position.map(|p| {
+            format!(
+                "{{ 'x': {}, 'y': {}, 'theta': {}, 
+'columns': {}, 'rows': {}, 'meters_per_cell': {},
+'free_space': {}, 'obstacles': {}}}",
+                p.pos[0],
+                p.pos[1],
+                p.theta,
+                self.free_space.cols,
+                self.free_space.rows,
+                self.free_space.meters_per_cell,
+                vec2pyliststr(&self.free_space.bits.words()),
+                vec2pyliststr(&self.obstacles.bits.words())
+            )
+        })
+    }
+}
+
+fn vec2pyliststr<T: Display>(v: &Vec<T>) -> String {
+    let strs = v.iter().map(|t| format!("{t}")).collect::<Vec<_>>();
+    format!("[{}]", strs.join(","))
 }
 
 /*

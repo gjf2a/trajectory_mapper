@@ -2,7 +2,7 @@ use futures::stream::StreamExt;
 use r2r::geometry_msgs::msg::TwistStamped;
 use r2r::{nav_msgs::msg::Odometry, Context, Node, QosProfile};
 use r2r::{std_msgs::msg::String as Ros2String, Publisher};
-use trajectory_mapper::{Trajectory, TrajectoryBuilder};
+use trajectory_mapper::{TrajectoryBuilder, TrajectoryMap};
 
 use std::env;
 use std::sync::Arc;
@@ -53,7 +53,8 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     let mut node = Node::create(context, node_name.as_str(), "")?;
     let odom_subscriber =
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
-    let vel_subscriber = node.subscribe::<TwistStamped>(vel_topic.as_str(), QosProfile::sensor_data())?;
+    let vel_subscriber =
+        node.subscribe::<TwistStamped>(vel_topic.as_str(), QosProfile::sensor_data())?;
     let map = Arc::new(Mutex::new(TrajectoryBuilder::default().build()));
 
     let running = Arc::new(AtomicCell::new(true));
@@ -79,7 +80,7 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
 
 async fn odom_handler<S>(
     mut odom_subscriber: S,
-    map: Arc<Mutex<Trajectory>>,
+    map: Arc<Mutex<TrajectoryMap>>,
     publisher: Publisher<Ros2String>,
 ) where
     S: Stream<Item = Odometry> + Unpin,
@@ -89,7 +90,7 @@ async fn odom_handler<S>(
             if let Some(data) = {
                 let mut map = map.lock().await;
                 map.add_pose(odom_msg.into());
-                map.estimate().map(|estimate| format!("{estimate:?}"))
+                map.as_python_dict()
             } {
                 let msg = Ros2String { data };
                 if let Err(e) = publisher.publish(&msg) {
@@ -100,8 +101,10 @@ async fn odom_handler<S>(
     }
 }
 
-async fn vel_handler<S>(mut vel_subscriber: S, map: Arc<Mutex<Trajectory>>) where
-S: Stream<Item = TwistStamped> + Unpin,{
+async fn vel_handler<S>(mut vel_subscriber: S, map: Arc<Mutex<TrajectoryMap>>)
+where
+    S: Stream<Item = TwistStamped> + Unpin,
+{
     loop {
         if let Some(vel_msg) = vel_subscriber.next().await {
             let mut map = map.lock().await;

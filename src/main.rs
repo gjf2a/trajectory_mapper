@@ -47,7 +47,7 @@ fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
 fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     let odom_topic = format!("/{robot_name}/odom");
     let vel_topic = format!("/{robot_name}/cmd_vel_stamped");
-    let estimate_topic_name = format!("/{robot_name}_pose_estimate");
+    let map_topic_name = format!("/{robot_name}_trajectory_map");
     let node_name = format!("{robot_name}_trajectory_mapper");
     let context = Context::create()?;
     let mut node = Node::create(context, node_name.as_str(), "")?;
@@ -62,9 +62,9 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
     ctrlc::set_handler(move || r.store(false))?;
 
     let publisher = node
-        .create_publisher::<Ros2String>(estimate_topic_name.as_str(), QosProfile::sensor_data())?;
+        .create_publisher::<Ros2String>(map_topic_name.as_str(), QosProfile::sensor_data())?;
     println!("Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n");
-    println!("Starting {node_name}; subscribe to {estimate_topic_name}");
+    println!("Starting {node_name}; subscribe to {map_topic_name}");
     smol::block_on(async {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();
         smol::spawn(vel_handler(vel_subscriber, map.clone())).detach();

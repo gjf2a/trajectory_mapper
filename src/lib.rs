@@ -183,14 +183,6 @@ fn vec2pyliststr<T: Display>(v: &Vec<T>) -> String {
 }
 
 /*
-Strategy
-* Maintain a free-space map
-* All planning happens within that context
-* Obstacles are not explicitly represented
-* Particle filter observations
-  * "there should be space here but I turned"
-  * Those particles get eliminated
-
 Details
 * Reset odom before starting
 * Center is (0, 0) in odom space

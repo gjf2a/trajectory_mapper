@@ -202,10 +202,23 @@ pub struct BinaryGrid {
     bits: BitArray,
 }
 
+impl Display for BinaryGrid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for row in 0..self.rows {
+            for col in 0..self.cols {
+                let value = if self.is_set(GridPoint::new([col, row])) {1} else {0};
+                write!(f, "{value}")?;
+            }
+            write!(f, "\n")?;
+        }
+        Ok(())
+    }
+}
+
 impl BinaryGrid {
     pub fn new(width: f64, height: f64, meters_per_cell: f64) -> Self {
-        let rows = (width / meters_per_cell) as u64;
-        let cols = (height / meters_per_cell) as u64;
+        let cols = (width / meters_per_cell) as u64;
+        let rows = (height / meters_per_cell) as u64;
         Self {
             rows,
             cols,
@@ -263,6 +276,56 @@ impl BinaryGrid {
 
 #[cfg(test)]
 mod tests {
+    use crate::{point::FloatPoint, BinaryGrid};
+
+    const CIRCLE_1_STR: &str = "00000000000000000000
+00000000100000000000
+00000011111000000000
+00000011111000000000
+00000111111100000000
+00000011111000000000
+00000011111000000000
+00000000100000000000
+";
+
     #[test]
-    fn test() {}
+    fn test1() {
+        let mut grid = BinaryGrid::new(10.0, 4.0, 0.5);
+        let dim = grid.grid_size();
+        assert_eq!(dim[0], 20);
+        assert_eq!(dim[1], 8);
+        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5, true);
+        println!("{grid}");
+        assert_eq!(format!("{grid}"), CIRCLE_1_STR);
+    }
+
+    const CIRCLE_2_STR: &str = "00100\n00000\n";
+
+    #[test]
+    fn test2() {
+        let mut grid = BinaryGrid::new(10.0, 4.0, 2.0);
+        let dim = grid.grid_size();
+        assert_eq!(dim[0], 5);
+        assert_eq!(dim[1], 2);
+        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5, true);
+        println!("{grid}");
+        assert_eq!(format!("{grid}"), CIRCLE_2_STR);
+    }
+
+    const CIRCLE_3_STR: &str = "0000000000
+0001110000
+0001110000
+0001110000
+";
+    
+    #[test]
+    fn test3() {
+        let mut grid = BinaryGrid::new(10.0, 4.0, 1.0);
+        let dim = grid.grid_size();
+        assert_eq!(dim[0], 10);
+        assert_eq!(dim[1], 4);
+        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5, true);
+        println!("{grid}");
+        assert_eq!(format!("{grid}"), CIRCLE_3_STR);
+    }
 }

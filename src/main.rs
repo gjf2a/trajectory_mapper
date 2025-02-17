@@ -35,13 +35,11 @@ fn parse_args(args: &Vec<String>) -> anyhow::Result<(u64, TrajectoryBuilder)> {
     for arg in args.iter() {
         if arg.starts_with("-spin_time") {
             period = parse_spin_time(arg.as_str())?;
-        }
-        else if arg.starts_with("-dim") {
+        } else if arg.starts_with("-dim") {
             let (width, height) = parse_dimension(arg.as_str())?;
             builder.dimensions(width, height);
-        } 
-        else if arg.starts_with("-meters_per_cell") {
-           builder.meters_per_cell(parse_meters_per_cell(arg.as_str())?);
+        } else if arg.starts_with("-meters_per_cell") {
+            builder.meters_per_cell(parse_meters_per_cell(arg.as_str())?);
         }
     }
     Ok((period, builder))
@@ -49,9 +47,9 @@ fn parse_args(args: &Vec<String>) -> anyhow::Result<(u64, TrajectoryBuilder)> {
 
 fn get_past_colon(arg: &str) -> anyhow::Result<&str> {
     arg.split(':')
-    .skip(1)
-    .next()
-    .ok_or(anyhow::Error::msg("Error in {arg}: No colon"))
+        .skip(1)
+        .next()
+        .ok_or(anyhow::Error::msg("Error in {arg}: No colon"))
 }
 
 fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
@@ -60,8 +58,16 @@ fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
 
 fn parse_dimension(arg: &str) -> anyhow::Result<(f64, f64)> {
     let mut iter = get_past_colon(arg)?.split('X');
-    let width = iter.next().ok_or(anyhow::Error::msg("Error in {arg}: No width given"))?.parse().map_err(anyhow::Error::from)?;
-    let height = iter.next().ok_or(anyhow::Error::msg("Error in {arg}: No height given"))?.parse().map_err(anyhow::Error::from)?;
+    let width = iter
+        .next()
+        .ok_or(anyhow::Error::msg("Error in {arg}: No width given"))?
+        .parse()
+        .map_err(anyhow::Error::from)?;
+    let height = iter
+        .next()
+        .ok_or(anyhow::Error::msg("Error in {arg}: No height given"))?
+        .parse()
+        .map_err(anyhow::Error::from)?;
     Ok((width, height))
 }
 
@@ -88,8 +94,8 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
     let r = running.clone();
     ctrlc::set_handler(move || r.store(false))?;
 
-    let publisher = node
-        .create_publisher::<Ros2String>(map_topic_name.as_str(), QosProfile::sensor_data())?;
+    let publisher =
+        node.create_publisher::<Ros2String>(map_topic_name.as_str(), QosProfile::sensor_data())?;
     println!("Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n");
     println!("Grid dimensions: {dimensions}");
     println!("Starting {node_name}; subscribe to {map_topic_name}");

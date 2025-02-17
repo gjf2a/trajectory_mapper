@@ -1,6 +1,7 @@
-use std::{fmt::Display, ops::{
-    Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
-}};
+use std::{
+    fmt::Display,
+    ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
+};
 
 use num_traits::{cast::ToPrimitive, Num};
 use trait_set::trait_set;

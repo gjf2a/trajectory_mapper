@@ -14,37 +14,62 @@ use crossbeam::atomic::AtomicCell;
 fn main() {
     let args = env::args().collect::<Vec<_>>();
     if args.len() < 2 {
-        println!("Usage: trajectory_mapper robot_name [-spin_time:millseconds]")
+        println!("Usage: trajectory_mapper robot_name [-spin_time:millseconds] [-dim:widthXheight] [-meters_per_cell:meters_per_cell]");
     } else {
-        let mut period = 100;
-        for arg in args.iter() {
-            if arg.starts_with("-spin_time") {
-                match parse_spin_time(arg.as_str()) {
-                    Ok(p) => {
-                        period = p;
-                    }
-                    Err(e) => {
-                        println!("Error in {arg}: {e}");
-                    }
+        match parse_args(&args) {
+            Ok((period, builder)) => {
+                if let Err(e) = runner(args[1].as_str(), period, builder) {
+                    println!("Unrecoverable error: {e}");
                 }
             }
-        }
-        if let Err(e) = runner(args[1].as_str(), period) {
-            println!("Unrecoverable error: {e}");
+            Err(e) => {
+                println!("Error: {e}");
+            }
         }
     }
 }
 
-fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
-    arg.split(':')
-        .skip(1)
-        .next()
-        .ok_or(anyhow::Error::msg("Error: No colon"))?
-        .parse()
-        .map_err(anyhow::Error::from)
+fn parse_args(args: &Vec<String>) -> anyhow::Result<(u64, TrajectoryBuilder)> {
+    let mut period = 100;
+    let mut builder = TrajectoryBuilder::default();
+    for arg in args.iter() {
+        if arg.starts_with("-spin_time") {
+            period = parse_spin_time(arg.as_str())?;
+        }
+        else if arg.starts_with("-dim") {
+            let (width, height) = parse_dimension(arg.as_str())?;
+            builder.dimensions(width, height);
+        } 
+        else if arg.starts_with("-meters_per_cell") {
+           builder.meters_per_cell(parse_meters_per_cell(arg.as_str())?);
+        }
+    }
+    Ok((period, builder))
 }
 
-fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
+fn get_past_colon(arg: &str) -> anyhow::Result<&str> {
+    arg.split(':')
+    .skip(1)
+    .next()
+    .ok_or(anyhow::Error::msg("Error in {arg}: No colon"))
+}
+
+fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
+    get_past_colon(arg)?.parse().map_err(anyhow::Error::from)
+}
+
+fn parse_dimension(arg: &str) -> anyhow::Result<(f64, f64)> {
+    let mut iter = get_past_colon(arg)?.split('X');
+    let width = iter.next().ok_or(anyhow::Error::msg("Error in {arg}: No width given"))?.parse().map_err(anyhow::Error::from)?;
+    let height = iter.next().ok_or(anyhow::Error::msg("Error in {arg}: No height given"))?.parse().map_err(anyhow::Error::from)?;
+    Ok((width, height))
+}
+
+fn parse_meters_per_cell(arg: &str) -> anyhow::Result<f64> {
+    get_past_colon(arg)?.parse().map_err(anyhow::Error::from)
+}
+
+fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::Result<()> {
     let odom_topic = format!("/{robot_name}/odom");
     let vel_topic = format!("/{robot_name}/cmd_vel_stamped");
     let map_topic_name = format!("/{robot_name}_trajectory_map");
@@ -55,7 +80,7 @@ fn runner(robot_name: &str, period: u64) -> anyhow::Result<()> {
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
     let vel_subscriber =
         node.subscribe::<TwistStamped>(vel_topic.as_str(), QosProfile::sensor_data())?;
-    let map = Arc::new(Mutex::new(TrajectoryBuilder::default().build()));
+    let map = Arc::new(Mutex::new(builder.build()));
 
     let running = Arc::new(AtomicCell::new(true));
     let r = running.clone();

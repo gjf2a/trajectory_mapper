@@ -150,6 +150,10 @@ impl TrajectoryMap {
         }
     }
 
+    pub fn grid_size(&self) -> GridPoint {
+        self.free_space.grid_size()
+    }
+
     pub fn add_move(&mut self, move_state: RobotMoveState) {
         self.move_state = move_state;
     }

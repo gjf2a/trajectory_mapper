@@ -80,7 +80,9 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
     let vel_subscriber =
         node.subscribe::<TwistStamped>(vel_topic.as_str(), QosProfile::sensor_data())?;
-    let map = Arc::new(Mutex::new(builder.build()));
+    let map = builder.build();
+    let dimensions = map.grid_size();
+    let map = Arc::new(Mutex::new(map));
 
     let running = Arc::new(AtomicCell::new(true));
     let r = running.clone();
@@ -89,6 +91,7 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
     let publisher = node
         .create_publisher::<Ros2String>(map_topic_name.as_str(), QosProfile::sensor_data())?;
     println!("Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n");
+    println!("Grid dimensions: {dimensions}");
     println!("Starting {node_name}; subscribe to {map_topic_name}");
     smol::block_on(async {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();

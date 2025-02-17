@@ -1,12 +1,12 @@
-use std::ops::{
+use std::{fmt::Display, ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
-};
+}};
 
 use num_traits::{cast::ToPrimitive, Num};
 use trait_set::trait_set;
 
 trait_set! {
-    pub trait NumType = ToPrimitive + Default + Num + Copy + AddAssign + SubAssign + MulAssign + DivAssign;
+    pub trait NumType = Display + ToPrimitive + Default + Num + Copy + AddAssign + SubAssign + MulAssign + DivAssign;
 }
 
 pub type GridPoint = Point<u64, 2>;
@@ -15,6 +15,13 @@ pub type FloatPoint = Point<f64, 2>;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Point<N: NumType, const S: usize> {
     coords: [N; S],
+}
+
+impl<N: NumType, const S: usize> Display for Point<N, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let joined = self.coords.map(|n| format!("{n}")).join(",");
+        write!(f, "({joined})")
+    }
 }
 
 impl<N: NumType, const S: usize> Point<N, S> {

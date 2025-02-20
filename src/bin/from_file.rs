@@ -54,7 +54,7 @@ fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<Rob
     loop {
         window.clear();
         let (mut rows, mut columns) = window.get_max_yx();
-        rows -= 2;
+        rows -= 3;
         columns -= 1;
         let grid_size = map.grid_size();
         let grid_rows = grid_size[1] as i32;

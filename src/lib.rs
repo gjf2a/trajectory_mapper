@@ -285,15 +285,20 @@ impl BinaryGrid {
     }
 
     pub fn is_set(&self, i: GridPoint) -> bool {
-        self.bits.is_set(self.ind(i))
+        self.ind(i).map_or(false, |i| self.bits.is_set(i))
     }
 
     pub fn set(&mut self, i: GridPoint, value: bool) {
-        self.bits.set(self.ind(i), value);
+        self.ind(i).map(|i| self.bits.set(i, value));
     }
 
-    fn ind(&self, p: GridPoint) -> u64 {
-        p[0] + p[1] * self.cols
+    fn ind(&self, p: GridPoint) -> Option<u64> {
+        if p[0] < self.cols && p[1] < self.rows {
+            Some(p[0] + p[1] * self.cols)
+        } else {
+            None
+        }
+        
     }
 
     fn offset(&self) -> FloatPoint {
@@ -315,10 +320,12 @@ impl BinaryGrid {
         let end = center + radius_offset;
         let grid_start = self.meters2cell(start);
         let grid_end = self.meters2cell(end);
+        println!("grid_start: {grid_start}\tgrid_end: {grid_end}");
         for x_grid in grid_start[0]..=grid_end[0] {
             for y_grid in grid_start[1]..=grid_end[1] {
                 let g = GridPoint::new([x_grid, y_grid]);
                 let pt = self.cell2meters(g);
+                println!("g: {g} pt: {pt} center: {center} distance: {} radius: {radius}", pt.euclidean_distance(center));
                 if pt.euclidean_distance(center) <= radius {
                     self.set(g, true);
                 }
@@ -380,5 +387,19 @@ mod tests {
         grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5);
         println!("{grid}");
         assert_eq!(format!("{grid}"), CIRCLE_3_STR);
+    }
+
+    const EDGE_STR: &str = "0000000001
+0000000001
+0000000000
+0000000000
+";
+
+    #[test]
+    fn test_edge() {
+        let mut grid = BinaryGrid::new(10.0, 4.0, 1.0);
+        grid.set_circle(FloatPoint::new([5.0, -1.5]), 1.5);
+        println!("{grid}");
+        assert_eq!(format!("{grid}"), EDGE_STR);
     }
 }

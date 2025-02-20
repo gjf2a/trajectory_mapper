@@ -165,7 +165,7 @@ impl TrajectoryMap {
                 self.turn_in_progress = false;
                 self.position = Some(pose);
                 self.free_space
-                    .set_circle(pose.pos, self.robot_radius_meters, true);
+                    .set_circle(pose.pos, self.robot_radius_meters);
             }
             RobotMoveState::Turning => {
                 if !self.turn_in_progress {
@@ -309,7 +309,7 @@ impl BinaryGrid {
         GridPoint::new([scaled[0] as u64, scaled[1] as u64])
     }
 
-    pub fn set_circle(&mut self, center: FloatPoint, radius: f64, value: bool) {
+    pub fn set_circle(&mut self, center: FloatPoint, radius: f64) {
         let radius_offset = FloatPoint::of(radius);
         let start = center - radius_offset;
         let end = center + radius_offset;
@@ -319,7 +319,9 @@ impl BinaryGrid {
             for y_grid in grid_start[1]..=grid_end[1] {
                 let g = GridPoint::new([x_grid, y_grid]);
                 let pt = self.cell2meters(g);
-                self.set(g, value == (pt.euclidean_distance(center) <= radius));
+                if pt.euclidean_distance(center) <= radius {
+                    self.set(g, true);
+                }
             }
         }
     }
@@ -345,7 +347,7 @@ mod tests {
         let dim = grid.grid_size();
         assert_eq!(dim[0], 20);
         assert_eq!(dim[1], 8);
-        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5, true);
+        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5);
         println!("{grid}");
         assert_eq!(format!("{grid}"), CIRCLE_1_STR);
     }
@@ -358,7 +360,7 @@ mod tests {
         let dim = grid.grid_size();
         assert_eq!(dim[0], 5);
         assert_eq!(dim[1], 2);
-        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5, true);
+        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5);
         println!("{grid}");
         assert_eq!(format!("{grid}"), CIRCLE_2_STR);
     }
@@ -375,7 +377,7 @@ mod tests {
         let dim = grid.grid_size();
         assert_eq!(dim[0], 10);
         assert_eq!(dim[1], 4);
-        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5, true);
+        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5);
         println!("{grid}");
         assert_eq!(format!("{grid}"), CIRCLE_3_STR);
     }

@@ -12,7 +12,7 @@ fn main() {
         .meters_per_cell(0.2)
         .build();
     let grid = map.grid_size();
-    let header = format!("{width:.2} x {height:.2} ({} x {})\n", grid[0], grid[1]);
+    let header = format!("{width:.2} x {height:.2} ({} x {})", grid[0], grid[1]);
     visualize_map(header.as_str(), &mut map, points.iter().copied().collect(), 100);
 }
 
@@ -49,6 +49,8 @@ fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<Rob
     window.keypad(true);
     noecho();
 
+    let total_points = points.len();
+
     loop {
         window.clear();
         let (mut rows, mut columns) = window.get_max_yx();
@@ -59,7 +61,7 @@ fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<Rob
         let grid_cols = grid_size[0] as i32;
         let row_grid_slice = round_quotient_up(grid_rows, rows);
         let col_grid_slice = round_quotient_up(grid_cols, columns);
-        let mut grid_str = format!("{header}");
+        let mut grid_str = format!("{header} {}/{} points\n", total_points - points.len(), total_points);
         for row in 0..rows {
             let grid_row = row * grid_rows / rows;
             for col in 0..columns {

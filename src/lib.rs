@@ -1,5 +1,8 @@
 use std::{
-    cmp::max, fmt::Display, fs::File, io::{BufRead, BufReader}
+    cmp::max,
+    fmt::Display,
+    fs::File,
+    io::{BufRead, BufReader},
 };
 
 use anyhow::{anyhow, Context};
@@ -39,17 +42,20 @@ impl RobotPose {
         }
     }
 
-    pub fn from_file(filename: &str) -> anyhow::Result<Vec<Self>> {
+    pub fn from_file(filename: &str) -> anyhow::Result<Vec<(Self, RobotMoveState)>> {
         let file_in = File::open(filename)?;
         let reader = BufReader::new(file_in);
         let mut points = vec![];
         for line in reader.lines() {
-            let line = line?;
-            let parts = line
-                .replace("(", "")
-                .replace(")", "")
-                .replace(",", "")
-                .split_whitespace()
+            let line = line?.replace("(", "").replace(")", "").replace(",", "");
+            let text = line.split_whitespace().collect::<Vec<_>>();
+            let state = if text[3] == "Forward" {
+                RobotMoveState::Forward
+            } else {
+                RobotMoveState::Turning
+            };
+            let parts = &text[..3]
+                .iter()
                 .map(|s| s.parse::<f64>())
                 .collect::<Result<Vec<_>, _>>()
                 .context("Parse error with robot coordinates")?;
@@ -58,7 +64,7 @@ impl RobotPose {
                     pos: FloatPoint::new([parts[0], parts[1]]),
                     theta: parts[2],
                 };
-                points.push(pose);
+                points.push((pose, state));
             } else {
                 return Err(anyhow!("Illegal number of points: {}", parts.len()));
             }
@@ -144,6 +150,7 @@ impl TrajectoryBuilder {
             obstacles: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             free_space: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             turn_in_progress: false,
+            num_points: 0,
         }
     }
 }
@@ -156,10 +163,12 @@ pub struct TrajectoryMap {
     robot_radius_meters: f64,
     move_state: RobotMoveState,
     turn_in_progress: bool,
+    num_points: u64,
 }
 
 impl TrajectoryMap {
     pub fn add_pose(&mut self, pose: RobotPose) {
+        self.num_points += 1;
         match self.move_state {
             RobotMoveState::Forward => {
                 self.turn_in_progress = false;
@@ -180,6 +189,8 @@ impl TrajectoryMap {
         }
     }
 
+    pub fn num_points(&self) -> u64 {self.num_points}
+
     pub fn grid_size(&self) -> GridPoint {
         self.free_space.grid_size()
     }
@@ -191,14 +202,29 @@ impl TrajectoryMap {
         row_grid_slice: u64,
         col_grid_slice: u64,
     ) -> bool {
-        for r in grid_row..grid_row + row_grid_slice {
-            for c in grid_col..grid_col + col_grid_slice {
-                if self.free_space.is_set(GridPoint::new([c, r])) {
-                    return true;
-                }
-            }
-        }
-        false
+        within(
+            &self.free_space,
+            grid_row,
+            grid_col,
+            row_grid_slice,
+            col_grid_slice,
+        )
+    }
+
+    pub fn obstacle_within(
+        &self,
+        grid_row: u64,
+        grid_col: u64,
+        row_grid_slice: u64,
+        col_grid_slice: u64,
+    ) -> bool {
+        within(
+            &self.obstacles,
+            grid_row,
+            grid_col,
+            row_grid_slice,
+            col_grid_slice,
+        )
     }
 
     pub fn add_move(&mut self, move_state: RobotMoveState) {
@@ -207,6 +233,10 @@ impl TrajectoryMap {
 
     pub fn estimate(&self) -> Option<RobotPose> {
         self.position
+    }
+
+    pub fn min_x_y_max_x_y(&self) -> (f64, f64, f64, f64) {
+        todo!()
     }
 
     pub fn as_python_dict(&self) -> Option<String> {
@@ -226,6 +256,23 @@ impl TrajectoryMap {
             )
         })
     }
+}
+
+fn within(
+    grid: &BinaryGrid,
+    grid_row: u64,
+    grid_col: u64,
+    row_grid_slice: u64,
+    col_grid_slice: u64,
+) -> bool {
+    for r in grid_row..grid_row + row_grid_slice {
+        for c in grid_col..grid_col + col_grid_slice {
+            if grid.is_set(GridPoint::new([c, r])) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn vec2pyliststr<T: Display>(v: &Vec<T>) -> String {
@@ -298,7 +345,6 @@ impl BinaryGrid {
         } else {
             None
         }
-        
     }
 
     fn offset(&self) -> FloatPoint {
@@ -325,7 +371,10 @@ impl BinaryGrid {
             for y_grid in grid_start[1]..=grid_end[1] {
                 let g = GridPoint::new([x_grid, y_grid]);
                 let pt = self.cell2meters(g);
-                println!("g: {g} pt: {pt} center: {center} distance: {} radius: {radius}", pt.euclidean_distance(center));
+                println!(
+                    "g: {g} pt: {pt} center: {center} distance: {} radius: {radius}",
+                    pt.euclidean_distance(center)
+                );
                 if pt.euclidean_distance(center) <= radius {
                     self.set(g, true);
                 }

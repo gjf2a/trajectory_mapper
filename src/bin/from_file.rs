@@ -1,17 +1,19 @@
 use pancurses::{endwin, initscr, noecho, Input};
 use trajectory_mapper::{RobotPose, TrajectoryBuilder, TrajectoryMap};
+use std::{collections::VecDeque, env};
 
 fn main() {
-    let points = RobotPose::from_file("points.txt").unwrap();
+    let args = env::args().collect::<Vec<_>>();
+    let filename = if args.len() > 1 {args[1].as_str()} else {"points.txt"};
+    let points = RobotPose::from_file(filename).unwrap();
     let (width, height) = width_height_from(&points);
     let mut map = TrajectoryBuilder::default()
         .dimensions(width, height)
         .meters_per_cell(0.2)
         .build();
-    for p in points.iter() {
-        map.add_pose(*p);
-    }
-    visualize_map(&map);
+    let grid = map.grid_size();
+    let header = format!("{width:.2} x {height:.2} ({} x {})\n", grid[0], grid[1]);
+    visualize_map(header.as_str(), &mut map, points.iter().copied().collect(), 100);
 }
 
 fn width_height_from(points: &Vec<RobotPose>) -> (f64, f64) {
@@ -42,7 +44,7 @@ fn breadth(lo: f64, hi: f64) -> f64 {
     v * 2.0
 }
 
-fn visualize_map(map: &TrajectoryMap) {
+fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<RobotPose>, points_per_key: usize) {
     let window = initscr();
     window.keypad(true);
     noecho();
@@ -50,14 +52,14 @@ fn visualize_map(map: &TrajectoryMap) {
     loop {
         window.clear();
         let (mut rows, mut columns) = window.get_max_yx();
-        rows -= 1;
+        rows -= 2;
         columns -= 1;
         let grid_size = map.grid_size();
         let grid_rows = grid_size[1] as i32;
         let grid_cols = grid_size[0] as i32;
         let row_grid_slice = round_quotient_up(grid_rows, rows);
         let col_grid_slice = round_quotient_up(grid_cols, columns);
-        let mut grid_str = String::new();
+        let mut grid_str = format!("{header}");
         for row in 0..rows {
             let grid_row = row * grid_rows / rows;
             for col in 0..columns {
@@ -68,7 +70,7 @@ fn visualize_map(map: &TrajectoryMap) {
                     row_grid_slice as u64,
                     col_grid_slice as u64,
                 ) {
-                    '*'
+                    'O'
                 } else {
                     '.'
                 };
@@ -80,6 +82,13 @@ fn visualize_map(map: &TrajectoryMap) {
         window.addstr(grid_str);
         match window.getch() {
             Some(Input::Character(c)) => match c {
+                ' ' => {
+                    let mut countdown = points_per_key;
+                    while countdown > 0 && points.len() > 0 {
+                        countdown -= 1;
+                        map.add_pose(points.pop_front().unwrap());
+                    }
+                }
                 'q' => break,
                 _ => {}
             },

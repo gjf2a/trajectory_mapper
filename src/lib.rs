@@ -1,7 +1,5 @@
 use std::{
-    fmt::Display,
-    fs::File,
-    io::{BufRead, BufReader},
+    cmp::max, fmt::Display, fs::File, io::{BufRead, BufReader}
 };
 
 use anyhow::{anyhow, Context};
@@ -270,8 +268,8 @@ impl Display for BinaryGrid {
 
 impl BinaryGrid {
     pub fn new(width: f64, height: f64, meters_per_cell: f64) -> Self {
-        let cols = (width / meters_per_cell) as u64;
-        let rows = (height / meters_per_cell) as u64;
+        let cols = max(1, (width / meters_per_cell) as u64);
+        let rows = max(1, (height / meters_per_cell) as u64);
         Self {
             rows,
             cols,

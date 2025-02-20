@@ -1,5 +1,10 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{BufRead, BufReader},
+};
 
+use anyhow::{anyhow, Context};
 use bits::BitArray;
 use point::{FloatPoint, GridPoint};
 use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
@@ -34,6 +39,33 @@ impl RobotPose {
             pos: FloatPoint::new([x, y]),
             theta: self.theta,
         }
+    }
+
+    pub fn from_file(filename: &str) -> anyhow::Result<Vec<Self>> {
+        let file_in = File::open(filename)?;
+        let reader = BufReader::new(file_in);
+        let mut points = vec![];
+        for line in reader.lines() {
+            let line = line?;
+            let parts = line
+                .replace("(", "")
+                .replace(")", "")
+                .replace(",", "")
+                .split_whitespace()
+                .map(|s| s.parse::<f64>())
+                .collect::<Result<Vec<_>, _>>()
+                .context("Parse error with robot coordinates")?;
+            if parts.len() == 3 {
+                let pose = RobotPose {
+                    pos: FloatPoint::new([parts[0], parts[1]]),
+                    theta: parts[2],
+                };
+                points.push(pose);
+            } else {
+                return Err(anyhow!("Illegal number of points: {}", parts.len()));
+            }
+        }
+        Ok(points)
     }
 }
 
@@ -154,6 +186,23 @@ impl TrajectoryMap {
         self.free_space.grid_size()
     }
 
+    pub fn free_space_within(
+        &self,
+        grid_row: u64,
+        grid_col: u64,
+        row_grid_slice: u64,
+        col_grid_slice: u64,
+    ) -> bool {
+        for r in grid_row..grid_row + row_grid_slice {
+            for c in grid_col..grid_col + col_grid_slice {
+                if self.free_space.is_set(GridPoint::new([c, r])) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     pub fn add_move(&mut self, move_state: RobotMoveState) {
         self.move_state = move_state;
     }
@@ -206,7 +255,11 @@ impl Display for BinaryGrid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for row in 0..self.rows {
             for col in 0..self.cols {
-                let value = if self.is_set(GridPoint::new([col, row])) {1} else {0};
+                let value = if self.is_set(GridPoint::new([col, row])) {
+                    1
+                } else {
+                    0
+                };
                 write!(f, "{value}")?;
             }
             write!(f, "\n")?;
@@ -317,7 +370,7 @@ mod tests {
 0001110000
 0001110000
 ";
-    
+
     #[test]
     fn test3() {
         let mut grid = BinaryGrid::new(10.0, 4.0, 1.0);

@@ -14,3 +14,4 @@ bits = {git = "https://github.com/gjf2a/bits"}
 enum-iterator = "2"
 num-traits = "0.2"
 trait-set = "0.3"
+pancurses = "0.17"

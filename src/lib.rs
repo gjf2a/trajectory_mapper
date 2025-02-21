@@ -1,5 +1,8 @@
 use std::{
-    cmp::max, fmt::Display, fs::File, io::{BufRead, BufReader}
+    cmp::max,
+    fmt::Display,
+    fs::File,
+    io::{BufRead, BufReader},
 };
 
 use anyhow::{anyhow, Context};
@@ -44,12 +47,16 @@ impl RobotPose {
         let reader = BufReader::new(file_in);
         let mut points = vec![];
         for line in reader.lines() {
-            let line = line?.replace("(", "")
-            .replace(")", "")
-            .replace(",", "")
-            .replace("'", "");
+            let line = line?
+                .replace("(", "")
+                .replace(")", "")
+                .replace(",", "")
+                .replace("'", "");
             let line = line.split_whitespace().collect::<Vec<_>>();
-            let nums = line.iter().take(3).map(|s| s.parse::<f64>())
+            let nums = line
+                .iter()
+                .take(3)
+                .map(|s| s.parse::<f64>())
                 .collect::<Result<Vec<_>, _>>()
                 .context("Parse error with robot coordinates")?;
             if nums.len() >= 3 {
@@ -194,7 +201,13 @@ impl TrajectoryMap {
         row_grid_slice: u64,
         col_grid_slice: u64,
     ) -> bool {
-        within(&self.free_space, grid_row, grid_col, row_grid_slice, col_grid_slice)
+        within(
+            &self.free_space,
+            grid_row,
+            grid_col,
+            row_grid_slice,
+            col_grid_slice,
+        )
     }
 
     pub fn obstacle_within(
@@ -204,7 +217,13 @@ impl TrajectoryMap {
         row_grid_slice: u64,
         col_grid_slice: u64,
     ) -> bool {
-        within(&self.obstacles, grid_row, grid_col, row_grid_slice, col_grid_slice)
+        within(
+            &self.obstacles,
+            grid_row,
+            grid_col,
+            row_grid_slice,
+            col_grid_slice,
+        )
     }
 
     pub fn add_move(&mut self, move_state: RobotMoveState) {
@@ -234,7 +253,8 @@ impl TrajectoryMap {
     }
 }
 
-fn within(grid: &BinaryGrid, 
+fn within(
+    grid: &BinaryGrid,
     grid_row: u64,
     grid_col: u64,
     row_grid_slice: u64,
@@ -249,7 +269,6 @@ fn within(grid: &BinaryGrid,
     }
     false
 }
-
 
 fn vec2pyliststr<T: Display>(v: &Vec<T>) -> String {
     let strs = v.iter().map(|t| format!("{t}")).collect::<Vec<_>>();
@@ -321,7 +340,6 @@ impl BinaryGrid {
         } else {
             None
         }
-        
     }
 
     fn offset(&self) -> FloatPoint {
@@ -348,7 +366,10 @@ impl BinaryGrid {
             for y_grid in grid_start[1]..=grid_end[1] {
                 let g = GridPoint::new([x_grid, y_grid]);
                 let pt = self.cell2meters(g);
-                println!("g: {g} pt: {pt} center: {center} distance: {} radius: {radius}", pt.euclidean_distance(center));
+                println!(
+                    "g: {g} pt: {pt} center: {center} distance: {} radius: {radius}",
+                    pt.euclidean_distance(center)
+                );
                 if pt.euclidean_distance(center) <= radius {
                     self.set(g, true);
                 }

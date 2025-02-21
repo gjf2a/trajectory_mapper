@@ -1,10 +1,14 @@
 use pancurses::{endwin, initscr, noecho, Input};
-use trajectory_mapper::{RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap};
 use std::{collections::VecDeque, env};
+use trajectory_mapper::{RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
-    let filename = if args.len() > 1 {args[1].as_str()} else {"points.txt"};
+    let filename = if args.len() > 1 {
+        args[1].as_str()
+    } else {
+        "points.txt"
+    };
     let points = RobotPose::from_file(filename).unwrap();
     let (width, height) = width_height_from(&points);
     let mut map = TrajectoryBuilder::default()
@@ -13,7 +17,12 @@ fn main() {
         .build();
     let grid = map.grid_size();
     let header = format!("{width:.2} x {height:.2} ({} x {})", grid[0], grid[1]);
-    visualize_map(header.as_str(), &mut map, points.iter().copied().collect(), 100);
+    visualize_map(
+        header.as_str(),
+        &mut map,
+        points.iter().copied().collect(),
+        100,
+    );
 }
 
 fn width_height_from(points: &Vec<(RobotPose, RobotMoveState)>) -> (f64, f64) {
@@ -44,7 +53,12 @@ fn breadth(lo: f64, hi: f64) -> f64 {
     v * 2.0
 }
 
-fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<(RobotPose, RobotMoveState)>, points_per_key: usize) {
+fn visualize_map(
+    header: &str,
+    map: &mut TrajectoryMap,
+    mut points: VecDeque<(RobotPose, RobotMoveState)>,
+    points_per_key: usize,
+) {
     let window = initscr();
     window.keypad(true);
     noecho();
@@ -61,7 +75,11 @@ fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<(Ro
         let grid_cols = grid_size[0] as i32;
         let row_grid_slice = round_quotient_up(grid_rows, rows);
         let col_grid_slice = round_quotient_up(grid_cols, columns);
-        let mut grid_str = format!("{header} {}/{} points\n", total_points - points.len(), total_points);
+        let mut grid_str = format!(
+            "{header} {}/{} points\n",
+            total_points - points.len(),
+            total_points
+        );
         for row in 0..rows {
             let grid_row = row * grid_rows / rows;
             for col in 0..columns {
@@ -79,11 +97,11 @@ fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<(Ro
                     col_grid_slice as u64,
                 );
                 let c = if free && obstacle {
-                    'X'
+                    '?'
                 } else if obstacle {
                     '#'
                 } else if free {
-                    'O'
+                    '*'
                 } else {
                     '.'
                 };

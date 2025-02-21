@@ -46,7 +46,8 @@ impl RobotPose {
         for line in reader.lines() {
             let line = line?.replace("(", "")
             .replace(")", "")
-            .replace(",", "");
+            .replace(",", "")
+            .replace("'", "");
             let line = line.split_whitespace().collect::<Vec<_>>();
             let nums = line.iter().take(3).map(|s| s.parse::<f64>())
                 .collect::<Result<Vec<_>, _>>()

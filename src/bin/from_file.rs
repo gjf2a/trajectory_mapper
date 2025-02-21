@@ -66,12 +66,23 @@ fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<(Ro
             let grid_row = row * grid_rows / rows;
             for col in 0..columns {
                 let grid_col = col * grid_cols / columns;
-                let c = if map.free_space_within(
+                let free = map.free_space_within(
                     grid_row as u64,
                     grid_col as u64,
                     row_grid_slice as u64,
                     col_grid_slice as u64,
-                ) {
+                );
+                let obstacle = map.obstacle_within(
+                    grid_row as u64,
+                    grid_col as u64,
+                    row_grid_slice as u64,
+                    col_grid_slice as u64,
+                );
+                let c = if free && obstacle {
+                    'X'
+                } else if obstacle {
+                    '#'
+                } else if free {
                     'O'
                 } else {
                     '.'

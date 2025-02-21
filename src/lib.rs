@@ -193,14 +193,17 @@ impl TrajectoryMap {
         row_grid_slice: u64,
         col_grid_slice: u64,
     ) -> bool {
-        for r in grid_row..grid_row + row_grid_slice {
-            for c in grid_col..grid_col + col_grid_slice {
-                if self.free_space.is_set(GridPoint::new([c, r])) {
-                    return true;
-                }
-            }
-        }
-        false
+        within(&self.free_space, grid_row, grid_col, row_grid_slice, col_grid_slice)
+    }
+
+    pub fn obstacle_within(
+        &self,
+        grid_row: u64,
+        grid_col: u64,
+        row_grid_slice: u64,
+        col_grid_slice: u64,
+    ) -> bool {
+        within(&self.obstacles, grid_row, grid_col, row_grid_slice, col_grid_slice)
     }
 
     pub fn add_move(&mut self, move_state: RobotMoveState) {
@@ -229,6 +232,23 @@ impl TrajectoryMap {
         })
     }
 }
+
+fn within(grid: &BinaryGrid, 
+    grid_row: u64,
+    grid_col: u64,
+    row_grid_slice: u64,
+    col_grid_slice: u64,
+) -> bool {
+    for r in grid_row..grid_row + row_grid_slice {
+        for c in grid_col..grid_col + col_grid_slice {
+            if grid.is_set(GridPoint::new([c, r])) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 
 fn vec2pyliststr<T: Display>(v: &Vec<T>) -> String {
     let strs = v.iter().map(|t| format!("{t}")).collect::<Vec<_>>();

@@ -1,5 +1,6 @@
 use std::{
     cmp::max,
+    collections::VecDeque,
     fmt::Display,
     fs::File,
     io::{BufRead, BufReader},
@@ -10,6 +11,7 @@ use bits::BitArray;
 use point::{FloatPoint, GridPoint};
 use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
+pub mod particle_filter;
 pub mod point;
 
 /*
@@ -194,6 +196,10 @@ impl TrajectoryMap {
         self.free_space.grid_size()
     }
 
+    pub fn robot_grid_radius(&self) -> u64 {
+        max(1, (self.robot_radius_meters / self.free_space.meters_per_cell) as u64)
+    }
+
     pub fn free_space_within(
         &self,
         grid_row: u64,
@@ -250,6 +256,34 @@ impl TrajectoryMap {
                 vec2pyliststr(&self.obstacles.bits.words())
             )
         })
+    }
+}
+
+/// Indicates how compatible the current move is with the map.
+/// Bigger numbers are better.
+pub fn current_move_alignment(map: &TrajectoryMap) -> f64 {
+    match map.position {
+        None => 0.0,
+        Some(pose) => match map.move_state {
+            RobotMoveState::Forward => (match map.obstacles.closest_1_to(map.obstacles.meters2cell(pose.pos)) {
+                    Some(d) => if d <= map.robot_grid_radius() {
+                        d
+                    } else {
+                        map.robot_grid_radius()
+                    }
+                    None => map.robot_grid_radius()
+                }) as f64,
+            RobotMoveState::Turning => (match map.obstacles.closest_1_to(map.obstacles.meters2cell(pose.pos)) {
+                    Some(d) => if d <= map.robot_grid_radius() {
+                        d
+                    } else if d <= 2 * map.robot_grid_radius() {
+                        2 * map.robot_grid_radius() - d
+                    } else {
+                        0
+                    }
+                    None => 0
+                }) as f64
+        },
     }
 }
 
@@ -322,21 +356,59 @@ impl BinaryGrid {
         }
     }
 
+    pub fn all_1s(&self) -> Vec<GridPoint> {
+        let mut result = vec![];
+        for col in 0..self.cols {
+            for row in 0..self.rows {
+                let g = GridPoint::new([col, row]);
+                if self.is_set(g) {
+                    result.push(g);
+                }
+            }
+        }
+        result
+    }
+
+    /// Performs breadth-first search to give the Manhattan distance
+    /// to the closest 1 to `gp`
+    pub fn closest_1_to(&self, gp: GridPoint) -> Option<u64> {
+        let mut visited = Self::new(self.width, self.height, self.meters_per_cell);
+        let mut queue = VecDeque::new();
+        queue.push_back((0, gp));
+        while let Some((distance, point)) = queue.pop_front() {
+            if self.in_bounds(point) && !visited.is_set(gp) {
+                visited.set(gp, true);
+                if self.is_set(gp) {
+                    return Some(distance);
+                } else {
+                    for neighbor in gp.neighbors() {
+                        queue.push_back((distance + 1, neighbor));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    pub fn in_bounds(&self, gp: GridPoint) -> bool {
+        self.ind(gp).is_some()
+    }
+
     pub fn grid_size(&self) -> GridPoint {
         GridPoint::new([self.cols, self.rows])
     }
 
-    pub fn is_set(&self, i: GridPoint) -> bool {
-        self.ind(i).map_or(false, |i| self.bits.is_set(i))
+    pub fn is_set(&self, gp: GridPoint) -> bool {
+        self.ind(gp).map_or(false, |i| self.bits.is_set(i))
     }
 
-    pub fn set(&mut self, i: GridPoint, value: bool) {
-        self.ind(i).map(|i| self.bits.set(i, value));
+    pub fn set(&mut self, gp: GridPoint, value: bool) {
+        self.ind(gp).map(|i| self.bits.set(i, value));
     }
 
-    fn ind(&self, p: GridPoint) -> Option<u64> {
-        if p[0] < self.cols && p[1] < self.rows {
-            Some(p[0] + p[1] * self.cols)
+    fn ind(&self, gp: GridPoint) -> Option<u64> {
+        if gp[0] < self.cols && gp[1] < self.rows {
+            Some(gp[0] + gp[1] * self.cols)
         } else {
             None
         }

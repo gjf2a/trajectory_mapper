@@ -3,6 +3,7 @@ use std::{
     ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
+use itertools::Itertools;
 use num_traits::{cast::ToPrimitive, Num};
 use trait_set::trait_set;
 
@@ -39,6 +40,25 @@ impl<N: NumType, const S: usize> Point<N, S> {
             .map(|i| ((self[i] - other[i]).to_f64().expect("Shouldn't happen")).powf(2.0))
             .sum::<f64>()
             .sqrt()
+    }
+}
+
+const OFFSETS: [i64; 3] = [-1, 0, 1];
+
+impl<const S: usize> Point<u64, S> {
+    pub fn neighbors(&self) -> impl Iterator<Item = Point<u64, S>> + use<'_, S> {
+        OFFSETS
+            .iter()
+            .combinations(S)
+            .filter(|c| !c.iter().all(|n| **n == 0))
+            .filter(|c| (0..S).all(|i| self[i] > 0 || *c[i] >= 0))
+            .map(|c| {
+                let mut values = [0; S];
+                for i in 0..S {
+                    values[i] = (self[i] as i64 + c[i]) as u64;
+                }
+                Point::<u64, S>::new(values)
+            })
     }
 }
 

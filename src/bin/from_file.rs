@@ -88,7 +88,8 @@ fn visualize_map(header: &str, map: &mut TrajectoryMap, mut points: VecDeque<(Ro
                     let mut countdown = points_per_key;
                     while countdown > 0 && points.len() > 0 {
                         countdown -= 1;
-                        let (pose, _) = points.pop_front().unwrap();
+                        let (pose, move_state) = points.pop_front().unwrap();
+                        map.add_move(move_state);
                         map.add_pose(pose);
                     }
                 }

@@ -101,7 +101,7 @@ fn visualize_map(
                 } else if obstacle {
                     '#'
                 } else if free {
-                    '*'
+                    'o'
                 } else {
                     '.'
                 };

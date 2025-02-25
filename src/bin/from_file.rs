@@ -1,6 +1,6 @@
 use pancurses::{endwin, initscr, noecho, Input};
 use std::{collections::VecDeque, env};
-use trajectory_mapper::{RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap};
+use trajectory_mapper::{RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap, current_move_alignment};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -76,9 +76,10 @@ fn visualize_map(
         let row_grid_slice = round_quotient_up(grid_rows, rows);
         let col_grid_slice = round_quotient_up(grid_cols, columns);
         let mut grid_str = format!(
-            "{header} {}/{} points\n",
+            "{header} {}/{} points alignment: {:.2}\n",
             total_points - points.len(),
-            total_points
+            total_points,
+            current_move_alignment(map)
         );
         for row in 0..rows {
             let grid_row = row * grid_rows / rows;

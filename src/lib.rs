@@ -6,11 +6,13 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use bits::BitArray;
+use odometry_math::find_roll_pitch_yaw;
 use point::{FloatPoint, GridPoint};
 use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
+pub mod odometry_math;
 pub mod particle_filter;
 pub mod point;
 
@@ -84,14 +86,8 @@ impl From<Odometry> for RobotPose {
         let mut result = Self::default();
         result.pos[0] = value.pose.pose.position.x;
         result.pos[1] = value.pose.pose.position.y;
-        let (q1, q2, q3, q0) = (
-            value.pose.pose.orientation.x,
-            value.pose.pose.orientation.y,
-            value.pose.pose.orientation.z,
-            value.pose.pose.orientation.w,
-        );
-        result.theta =
-            (q0 * q3 + q1 * q2).atan2(q0.powf(2.0) + q1.powf(2.0) - q2.powf(2.0) - q3.powf(2.0));
+        let (_, _, theta) = find_roll_pitch_yaw(value);
+        result.theta = theta;
         result
     }
 }
@@ -156,6 +152,7 @@ impl TrajectoryBuilder {
             obstacles: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             free_space: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             turn_in_progress: false,
+            cumulative_alignment: 0.0,
         }
     }
 }
@@ -168,6 +165,7 @@ pub struct TrajectoryMap {
     robot_radius_meters: f64,
     move_state: RobotMoveState,
     turn_in_progress: bool,
+    cumulative_alignment: f64,
 }
 
 impl TrajectoryMap {
@@ -190,6 +188,15 @@ impl TrajectoryMap {
                 }
             }
         }
+        self.cumulative_alignment += current_move_alignment(self);
+    }
+
+    pub fn add_move(&mut self, move_state: RobotMoveState) {
+        self.move_state = move_state;
+    }
+
+    pub fn cumulative_alignment(&self) -> f64 {
+        self.cumulative_alignment
     }
 
     pub fn grid_size(&self) -> GridPoint {
@@ -197,7 +204,10 @@ impl TrajectoryMap {
     }
 
     pub fn robot_grid_radius(&self) -> u64 {
-        max(1, (self.robot_radius_meters / self.free_space.meters_per_cell) as u64)
+        max(
+            1,
+            (self.robot_radius_meters / self.free_space.meters_per_cell) as u64,
+        )
     }
 
     pub fn free_space_within(
@@ -232,10 +242,6 @@ impl TrajectoryMap {
         )
     }
 
-    pub fn add_move(&mut self, move_state: RobotMoveState) {
-        self.move_state = move_state;
-    }
-
     pub fn estimate(&self) -> Option<RobotPose> {
         self.position
     }
@@ -261,29 +267,36 @@ impl TrajectoryMap {
 
 /// Indicates how compatible the current move is with the map.
 /// Bigger numbers are better.
-pub fn current_move_alignment(map: &TrajectoryMap) -> f64 {
+fn current_move_alignment(map: &TrajectoryMap) -> f64 {
     match map.position {
         None => 0.0,
-        Some(pose) => match map.move_state {
-            RobotMoveState::Forward => (match map.obstacles.closest_1_to(map.obstacles.meters2cell(pose.pos)) {
-                    Some(d) => if d <= map.robot_grid_radius() {
+        Some(pose) => {
+            (match map
+                .obstacles
+                .closest_1_to(map.obstacles.meters2cell(pose.pos))
+            {
+                None => match map.move_state {
+                    RobotMoveState::Forward => map.robot_grid_radius(),
+                    RobotMoveState::Turning => 0,
+                },
+                Some(d) => {
+                    if d <= map.robot_grid_radius() {
                         d
                     } else {
-                        map.robot_grid_radius()
+                        match map.move_state {
+                            RobotMoveState::Forward => map.robot_grid_radius(),
+                            RobotMoveState::Turning => {
+                                if d <= 2 * map.robot_grid_radius() {
+                                    2 * map.robot_grid_radius() - d
+                                } else {
+                                    0
+                                }
+                            }
+                        }
                     }
-                    None => map.robot_grid_radius()
-                }) as f64,
-            RobotMoveState::Turning => (match map.obstacles.closest_1_to(map.obstacles.meters2cell(pose.pos)) {
-                    Some(d) => if d <= map.robot_grid_radius() {
-                        d
-                    } else if d <= 2 * map.robot_grid_radius() {
-                        2 * map.robot_grid_radius() - d
-                    } else {
-                        0
-                    }
-                    None => 0
-                }) as f64
-        },
+                }
+            }) as f64
+        }
     }
 }
 
@@ -452,7 +465,7 @@ impl BinaryGrid {
 
 #[cfg(test)]
 mod tests {
-    use crate::{point::FloatPoint, BinaryGrid};
+    use crate::{BinaryGrid, point::FloatPoint};
 
     const CIRCLE_1_STR: &str = "00000000000000000000
 00000000100000000000

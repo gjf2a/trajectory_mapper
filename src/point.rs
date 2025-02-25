@@ -4,7 +4,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use num_traits::{cast::ToPrimitive, Num};
+use num_traits::{Num, cast::ToPrimitive};
 use trait_set::trait_set;
 
 trait_set! {

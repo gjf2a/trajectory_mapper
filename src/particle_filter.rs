@@ -3,21 +3,25 @@ use distribution_select::Distribution;
 use crate::{RobotMoveState, RobotPose, TrajectoryMap};
 
 #[derive(Clone, Debug)]
-pub struct ParticleFilter<N: Clone + Fn(RobotPose) -> RobotPose, F: Clone + Fn(&TrajectoryMap) -> f64> {
+pub struct ParticleFilter<N: Clone + Fn(RobotPose) -> RobotPose> {
     particles: Vec<TrajectoryMap>,
     best_particle: TrajectoryMap,
     noise_func: N,
-    fitness_func: F,
 }
 
-impl<N: Clone + Fn(RobotPose) -> RobotPose, F: Clone + Fn(&TrajectoryMap) -> f64> ParticleFilter<N, F> {
-    pub fn new(initial_map: &TrajectoryMap, num_particles: usize, noise_func: N, fitness_func: F) -> Self {
+impl<N: Clone + Fn(RobotPose) -> RobotPose> ParticleFilter<N> {
+    pub fn new(initial_map: &TrajectoryMap, num_particles: usize, noise_func: N) -> Self {
         Self {
-            particles: std::iter::repeat(initial_map.clone()).take(num_particles).collect(),
+            particles: std::iter::repeat(initial_map.clone())
+                .take(num_particles)
+                .collect(),
             best_particle: initial_map.clone(),
             noise_func,
-            fitness_func
         }
+    }
+
+    pub fn current_best(&self) -> TrajectoryMap {
+        self.best_particle.clone()
     }
 
     pub fn iterate(&mut self, pose: RobotPose, move_state: RobotMoveState) {
@@ -30,14 +34,14 @@ impl<N: Clone + Fn(RobotPose) -> RobotPose, F: Clone + Fn(&TrajectoryMap) -> f64
         let mut best_weight = 0.0;
         let mut best_i = 0;
         for (i, particle) in self.particles.iter().enumerate() {
-            let weight = (self.fitness_func)(particle);
+            let weight = particle.cumulative_alignment();
             if weight > best_weight {
                 best_weight = weight;
                 best_i = i;
             }
             distro.add(&i, weight + 1.0);
         }
-        
+
         self.best_particle = self.particles[best_i].clone();
 
         let mut new_particles = vec![];

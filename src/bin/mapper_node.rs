@@ -1,7 +1,7 @@
 use futures::stream::StreamExt;
 use r2r::geometry_msgs::msg::TwistStamped;
-use r2r::{nav_msgs::msg::Odometry, Context, Node, QosProfile};
-use r2r::{std_msgs::msg::String as Ros2String, Publisher};
+use r2r::{Context, Node, QosProfile, nav_msgs::msg::Odometry};
+use r2r::{Publisher, std_msgs::msg::String as Ros2String};
 use trajectory_mapper::{TrajectoryBuilder, TrajectoryMap};
 
 use std::env;
@@ -14,7 +14,9 @@ use crossbeam::atomic::AtomicCell;
 fn main() {
     let args = env::args().collect::<Vec<_>>();
     if args.len() < 2 {
-        println!("Usage: trajectory_mapper robot_name [-spin_time:millseconds] [-dim:widthXheight] [-meters_per_cell:meters_per_cell]");
+        println!(
+            "Usage: trajectory_mapper robot_name [-spin_time:millseconds] [-dim:widthXheight] [-meters_per_cell:meters_per_cell]"
+        );
     } else {
         match parse_args(&args) {
             Ok((period, builder)) => {
@@ -96,7 +98,9 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
 
     let publisher =
         node.create_publisher::<Ros2String>(map_topic_name.as_str(), QosProfile::sensor_data())?;
-    println!("Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n");
+    println!(
+        "Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n"
+    );
     println!("Grid dimensions: {dimensions}");
     println!("Starting {node_name}; subscribe to {map_topic_name}");
     smol::block_on(async {

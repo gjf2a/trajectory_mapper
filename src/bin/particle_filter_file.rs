@@ -1,6 +1,7 @@
-use pancurses::{Input, endwin, initscr, noecho};
+use pancurses::{endwin, initscr, noecho, Input};
 use std::{collections::VecDeque, env};
-use trajectory_mapper::{RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap};
+use rand::Rng;
+use trajectory_mapper::{odometry_math::find_normalized_angle, particle_filter::ParticleFilter, point::Point, RobotMoveState, RobotPose, TrajectoryBuilder};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -11,15 +12,22 @@ fn main() {
     };
     let points = RobotPose::from_file(filename).unwrap();
     let (width, height) = width_height_from(&points);
-    let mut map = TrajectoryBuilder::default()
+    let map = TrajectoryBuilder::default()
         .dimensions(width, height)
         .meters_per_cell(0.2)
         .build();
     let grid = map.grid_size();
     let header = format!("{width:.2} x {height:.2} ({} x {})", grid[0], grid[1]);
+    let mut filter = ParticleFilter::new(&map, 100, |p| {
+        let mut rng = rand::rng();
+        RobotPose {
+            pos: Point::new([p.pos[0] + rng.random_range(-0.2..0.2), p.pos[1] + rng.random_range(-0.2..0.2)]),
+            theta: find_normalized_angle(p.theta + rng.random_range(-0.2..0.2))
+        }
+    });
     visualize_map(
         header.as_str(),
-        &mut map,
+        &mut filter,
         points.iter().copied().collect(),
         100,
     );
@@ -53,9 +61,9 @@ fn breadth(lo: f64, hi: f64) -> f64 {
     v * 2.0
 }
 
-fn visualize_map(
+fn visualize_map<N: Clone + Fn(RobotPose) -> RobotPose>(
     header: &str,
-    map: &mut TrajectoryMap,
+    filter: &mut ParticleFilter<N>,
     mut points: VecDeque<(RobotPose, RobotMoveState)>,
     points_per_key: usize,
 ) {
@@ -70,6 +78,7 @@ fn visualize_map(
         let (mut rows, mut columns) = window.get_max_yx();
         rows -= 3;
         columns -= 1;
+        let map = filter.current_best();
         let grid_size = map.grid_size();
         let grid_rows = grid_size[1] as i32;
         let grid_cols = grid_size[0] as i32;
@@ -79,7 +88,7 @@ fn visualize_map(
             "{header} {}/{} points alignment: {:.2}\n",
             total_points - points.len(),
             total_points,
-            map.cumulative_alignment(),
+            map.cumulative_alignment()
         );
         for row in 0..rows {
             let grid_row = row * grid_rows / rows;
@@ -119,8 +128,7 @@ fn visualize_map(
                     while countdown > 0 && points.len() > 0 {
                         countdown -= 1;
                         let (pose, move_state) = points.pop_front().unwrap();
-                        map.add_move(move_state);
-                        map.add_pose(pose);
+                        filter.iterate(pose, move_state);
                     }
                 }
                 'q' => break,

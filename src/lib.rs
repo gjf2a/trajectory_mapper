@@ -134,7 +134,7 @@ impl Default for TrajectoryBuilder {
             robot_radius_meters: 0.35,
             width: 3.0,
             height: 3.0,
-            meters_per_cell: 0.5,
+            meters_per_cell: 0.1,
         }
     }
 }

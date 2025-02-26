@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use rand::Rng;
+use rand_distr::{Distribution, Normal};
 use trajectory_mapper::{cmd::ArgVals, odometry_math::find_normalized_angle, particle_filter::ParticleFilter, point::{width_height_from, Point}, RobotPose, TrajectoryBuilder};
 
 fn main() {
@@ -29,6 +29,8 @@ fn main() {
             test_map.add_pose(*pose);
         }
         println!("Basic alignment: {:.2}", test_map.cumulative_alignment());
+        let linear_normal = Normal::new(0.0, linear_noise).unwrap();
+        let angular_normal = Normal::new(0.0, angular_noise).unwrap();
 
         for r in 0..num_runs {
             let start = Instant::now();
@@ -36,17 +38,17 @@ fn main() {
                 let mut rng = rand::rng();
                 RobotPose {
                     pos: Point::new([
-                        p.pos[0] + rng.random_range(-linear_noise..linear_noise),
-                        p.pos[1] + rng.random_range(-linear_noise..linear_noise),
+                        p.pos[0] + linear_normal.sample(&mut rng),
+                        p.pos[1] + linear_normal.sample(&mut rng),
                     ]),
-                    theta: find_normalized_angle(p.theta + rng.random_range(-angular_noise..angular_noise)),
+                    theta: find_normalized_angle(p.theta + angular_normal.sample(&mut rng)),
                 }
             });
             for (pose, move_state) in points.iter() {
                 filter.iterate(*pose, *move_state);
             }
             let duration = Instant::now().duration_since(start).as_secs_f64();
-            println!("Run {r}/{num_runs}: {:.2} ({duration:.2}s)", filter.current_best().cumulative_alignment());
+            println!("Run {}/{num_runs}: {:.2} ({duration:.2}s)", r + 1, filter.current_best().cumulative_alignment());
         }
     }
 }

@@ -2,9 +2,9 @@ use futures::stream::StreamExt;
 use r2r::geometry_msgs::msg::TwistStamped;
 use r2r::{Context, Node, QosProfile, nav_msgs::msg::Odometry};
 use r2r::{Publisher, std_msgs::msg::String as Ros2String};
-use trajectory_mapper::{TrajectoryBuilder, TrajectoryMap};
+use trajectory_mapper::cmd::ArgVals;
+use trajectory_mapper::{cmd, TrajectoryBuilder, TrajectoryMap};
 
-use std::env;
 use std::sync::Arc;
 
 use smol::{lock::Mutex, stream::Stream};
@@ -12,15 +12,15 @@ use smol::{lock::Mutex, stream::Stream};
 use crossbeam::atomic::AtomicCell;
 
 fn main() {
-    let args = env::args().collect::<Vec<_>>();
+    let args = cmd::ArgVals::default();
     if args.len() < 2 {
         println!(
-            "Usage: trajectory_mapper robot_name [-spin_time:millseconds] [-dim:widthXheight] [-meters_per_cell:meters_per_cell]"
+            "Usage: mapper_node robot_name [-spin_time=millseconds] [-dim=width,height] [-meters_per_cell=meters_per_cell]"
         );
     } else {
         match parse_args(&args) {
             Ok((period, builder)) => {
-                if let Err(e) = runner(args[1].as_str(), period, builder) {
+                if let Err(e) = runner(args.get_symbol(0), period, builder) {
                     println!("Unrecoverable error: {e}");
                 }
             }
@@ -31,50 +31,19 @@ fn main() {
     }
 }
 
-fn parse_args(args: &Vec<String>) -> anyhow::Result<(u64, TrajectoryBuilder)> {
+fn parse_args(args: &ArgVals) -> anyhow::Result<(u64, TrajectoryBuilder)> {
     let mut period = 100;
     let mut builder = TrajectoryBuilder::default();
-    for arg in args.iter() {
-        if arg.starts_with("-spin_time") {
-            period = parse_spin_time(arg.as_str())?;
-        } else if arg.starts_with("-dim") {
-            let (width, height) = parse_dimension(arg.as_str())?;
-            builder.dimensions(width, height);
-        } else if arg.starts_with("-meters_per_cell") {
-            builder.meters_per_cell(parse_meters_per_cell(arg.as_str())?);
-        }
+    if let Some(spin_time) = args.get_value("-spin_time") {
+        period = spin_time;
+    }
+    if let Some((width, height)) = args.get_duple("-dim") {
+        builder.dimensions(width, height);
+    }
+    if let Some(mpc) = args.get_value("-meters_per_cell") {
+        builder.meters_per_cell(mpc);
     }
     Ok((period, builder))
-}
-
-fn get_past_colon(arg: &str) -> anyhow::Result<&str> {
-    arg.split(':')
-        .skip(1)
-        .next()
-        .ok_or(anyhow::Error::msg("Error in {arg}: No colon"))
-}
-
-fn parse_spin_time(arg: &str) -> anyhow::Result<u64> {
-    get_past_colon(arg)?.parse().map_err(anyhow::Error::from)
-}
-
-fn parse_dimension(arg: &str) -> anyhow::Result<(f64, f64)> {
-    let mut iter = get_past_colon(arg)?.split('X');
-    let width = iter
-        .next()
-        .ok_or(anyhow::Error::msg("Error in {arg}: No width given"))?
-        .parse()
-        .map_err(anyhow::Error::from)?;
-    let height = iter
-        .next()
-        .ok_or(anyhow::Error::msg("Error in {arg}: No height given"))?
-        .parse()
-        .map_err(anyhow::Error::from)?;
-    Ok((width, height))
-}
-
-fn parse_meters_per_cell(arg: &str) -> anyhow::Result<f64> {
-    get_past_colon(arg)?.parse().map_err(anyhow::Error::from)
 }
 
 fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::Result<()> {

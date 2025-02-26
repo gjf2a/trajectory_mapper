@@ -7,14 +7,14 @@ fn main() {
     let args = ArgVals::default();
     if args.len() < 5 {
         println!(
-            "Usage: particle_expr filename num_particles=value linear_noise=value angular_noise=value num_runs=value"
+            "Usage: particle_expr filename -num_particles=value -linear_noise=value -angular_noise=value -num_runs=value"
         );
     } else {
-        let filename = args.simple_vals[0].as_str();
-        let num_particles = args.mapped_vals.get("num_particles").unwrap().parse::<usize>().unwrap();
-        let linear_noise = args.mapped_vals.get("linear_noise").unwrap().parse::<f64>().unwrap();
-        let angular_noise = args.mapped_vals.get("angular_noise").unwrap().parse::<f64>().unwrap();
-        let num_runs = args.mapped_vals.get("num_runs").unwrap().parse::<usize>().unwrap();
+        let filename = args.get_symbol(0);
+        let num_particles = args.get_value("-num_particles").unwrap();
+        let linear_noise = args.get_value("-linear_noise").unwrap();
+        let angular_noise = args.get_value("-angular_noise").unwrap();
+        let num_runs = args.get_value("-num_runs").unwrap();
         
         let points = RobotPose::from_file(filename).unwrap();
         let (width, height) = width_height_from(&points);

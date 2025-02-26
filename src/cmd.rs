@@ -1,14 +1,43 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 #[derive(Debug)]
 pub struct ArgVals {
-    pub simple_vals: Vec<String>,
-    pub mapped_vals: HashMap<String, String>,
+    simple_vals: Vec<String>,
+    mapped_vals: HashMap<String, String>,
 }
 
 impl ArgVals {
     pub fn len(&self) -> usize {
         self.simple_vals.len() + self.mapped_vals.len()
+    }
+
+    pub fn num_symbols(&self) -> usize {
+        self.simple_vals.len()
+    }
+
+    pub fn get_symbol(&self, i: usize) -> &str {
+        self.simple_vals[i].as_str()
+    }
+
+    pub fn get_value<N: Copy + FromStr>(&self, key: &str) -> Option<N> {
+        self.mapped_vals.get(key).map(|v| v.parse::<N>()).and_then(|v| v.ok())
+    }
+
+    pub fn get_duple<N: Copy + FromStr>(&self, key: &str) -> Option<(N, N)> {
+        self.mapped_vals.get(key).and_then(|v| {
+            let values = v.split(",").collect::<Vec<_>>();
+            if values.len() == 2 {
+                match values[0].parse::<N>() {
+                    Err(_) => None,
+                    Ok(v1) => match values[1].parse::<N>() {
+                        Err(_) => None,
+                        Ok(v2) => Some((v1, v2))
+                    }
+                }
+            } else {
+                None
+            }
+        })
     }
 }
 

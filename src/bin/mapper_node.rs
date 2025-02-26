@@ -3,7 +3,7 @@ use r2r::geometry_msgs::msg::TwistStamped;
 use r2r::{Context, Node, QosProfile, nav_msgs::msg::Odometry};
 use r2r::{Publisher, std_msgs::msg::String as Ros2String};
 use trajectory_mapper::cmd::ArgVals;
-use trajectory_mapper::{cmd, TrajectoryBuilder, TrajectoryMap};
+use trajectory_mapper::{TrajectoryBuilder, TrajectoryMap, cmd};
 
 use std::sync::Arc;
 

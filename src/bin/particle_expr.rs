@@ -1,7 +1,13 @@
 use std::time::Instant;
 
 use rand_distr::{Distribution, Normal};
-use trajectory_mapper::{cmd::ArgVals, odometry_math::find_normalized_angle, particle_filter::ParticleFilter, point::{width_height_from, Point}, RobotPose, TrajectoryBuilder};
+use trajectory_mapper::{
+    RobotPose, TrajectoryBuilder,
+    cmd::ArgVals,
+    odometry_math::find_normalized_angle,
+    particle_filter::ParticleFilter,
+    point::{Point, width_height_from},
+};
 
 fn main() {
     let args = ArgVals::default();
@@ -15,7 +21,7 @@ fn main() {
         let linear_noise = args.get_value("-linear_noise").unwrap();
         let angular_noise = args.get_value("-angular_noise").unwrap();
         let num_runs = args.get_value("-num_runs").unwrap();
-        
+
         let points = RobotPose::from_file(filename).unwrap();
         let (width, height) = width_height_from(&points);
         let map = TrajectoryBuilder::default()
@@ -48,7 +54,11 @@ fn main() {
                 filter.iterate(*pose, *move_state);
             }
             let duration = Instant::now().duration_since(start).as_secs_f64();
-            println!("Run {}/{num_runs}: {:.2} ({duration:.2}s)", r + 1, filter.current_best().cumulative_alignment());
+            println!(
+                "Run {}/{num_runs}: {:.2} ({duration:.2}s)",
+                r + 1,
+                filter.current_best().cumulative_alignment()
+            );
         }
     }
 }

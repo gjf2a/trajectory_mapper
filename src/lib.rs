@@ -1,11 +1,11 @@
-/* 
+/*
 Next steps:
 1. Create an exploration mode. It will package into its message the locations of
-each frontier cell that is wide enough to fit through. 
+each frontier cell that is wide enough to fit through.
 2. Alternative to (1): Only send the frontier location closest to the robot.
 3. Create an A* pathfinder.
 4. Refactor the BinaryGrid so as to not require stating the size in advance.
-5. Get some practice with the particle filter, to figure out some noise models 
+5. Get some practice with the particle filter, to figure out some noise models
 that create practical improvements.
  */
 
@@ -212,12 +212,20 @@ impl TrajectoryMap {
     }
 
     pub fn open_frontier_points(&self) -> Vec<FloatPoint> {
-        self.free_space.all_1s().iter().filter(|gp| self.is_open_frontier(*gp)).map(|gp| self.free_space.cell2meters(*gp)).collect()
+        self.free_space
+            .all_1s()
+            .iter()
+            .filter(|gp| self.has_unvisited_neighbor(*gp))
+            .map(|gp| self.free_space.cell2meters(*gp))
+            .collect()
     }
 
-    pub fn is_open_frontier(&self, gp: &GridPoint) -> bool {
+    pub fn has_unvisited_neighbor(&self, gp: &GridPoint) -> bool {
         for neighbor in gp.neighbors() {
-            if self.free_space.in_bounds(neighbor) && !self.free_space.is_set(neighbor) && !self.obstacles.is_set(neighbor) {
+            if self.free_space.in_bounds(neighbor)
+                && !self.free_space.is_set(neighbor)
+                && !self.obstacles.is_set(neighbor)
+            {
                 return true;
             }
         }

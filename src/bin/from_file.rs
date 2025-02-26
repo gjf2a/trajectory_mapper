@@ -1,6 +1,8 @@
 use pancurses::{Input, endwin, initscr, noecho};
 use std::{collections::VecDeque, env};
-use trajectory_mapper::{point::GridPoint, RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap};
+use trajectory_mapper::{
+    RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap, point::GridPoint,
+};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -97,7 +99,11 @@ fn visualize_map(
                     row_grid_slice as u64,
                     col_grid_slice as u64,
                 );
-                let frontier = free && map.is_open_frontier(&GridPoint::new([grid_col as u64, grid_row as u64]));
+                let frontier = free
+                    && map.has_unvisited_neighbor(&GridPoint::new([
+                        grid_col as u64,
+                        grid_row as u64,
+                    ]));
                 let c = if free && obstacle {
                     '?'
                 } else if obstacle {

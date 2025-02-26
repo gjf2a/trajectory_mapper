@@ -20,7 +20,10 @@ impl ArgVals {
     }
 
     pub fn get_value<N: Copy + FromStr>(&self, key: &str) -> Option<N> {
-        self.mapped_vals.get(key).map(|v| v.parse::<N>()).and_then(|v| v.ok())
+        self.mapped_vals
+            .get(key)
+            .map(|v| v.parse::<N>())
+            .and_then(|v| v.ok())
     }
 
     pub fn get_duple<N: Copy + FromStr>(&self, key: &str) -> Option<(N, N)> {
@@ -31,8 +34,8 @@ impl ArgVals {
                     Err(_) => None,
                     Ok(v1) => match values[1].parse::<N>() {
                         Err(_) => None,
-                        Ok(v2) => Some((v1, v2))
-                    }
+                        Ok(v2) => Some((v1, v2)),
+                    },
                 }
             } else {
                 None

@@ -2,7 +2,10 @@ use pancurses::{Input, endwin, initscr, noecho};
 use rand::Rng;
 use std::{collections::VecDeque, env};
 use trajectory_mapper::{
-    odometry_math::find_normalized_angle, particle_filter::ParticleFilter, point::{width_height_from, Point}, RobotMoveState, RobotPose, TrajectoryBuilder
+    RobotMoveState, RobotPose, TrajectoryBuilder,
+    odometry_math::find_normalized_angle,
+    particle_filter::ParticleFilter,
+    point::{Point, width_height_from},
 };
 
 fn main() {

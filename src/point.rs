@@ -51,16 +51,21 @@ impl<const S: usize> Point<u64, S> {
     pub fn neighbors(&self) -> impl Iterator<Item = Point<u64, S>> + use<'_, S> {
         OFFSETS
             .iter()
-            .combinations(S)
-            .filter(|c| !c.iter().all(|n| **n == 0))
-            .filter(|c| (0..S).all(|i| self[i] > 0 || *c[i] >= 0))
+            .permutations(S)
+            .inspect(|c| println!("combo: {c:?}"))
+            .filter(|c| c.iter().filter(|n| ***n != 0).count() == 1)
+            .inspect(|c| println!("nonzero combo: {c:?}"))
             .map(|c| {
                 let mut values = [0; S];
                 for i in 0..S {
-                    values[i] = (self[i] as i64 + c[i]) as u64;
+                    values[i] = self[i] as i64 + c[i];
                 }
-                Point::<u64, S>::new(values)
+                values
             })
+            .inspect(|c| println!("candidate: {c:?}"))
+            .filter(|c| (0..S).all(|i| c[i] >= 0))
+            .inspect(|c| println!("survivor: {c:?}"))
+            .map(|c| Point::<u64, S>::new(c.map(|v| v as u64)))
     }
 }
 
@@ -192,4 +197,28 @@ fn breadth(lo: f64, hi: f64) -> f64 {
         hi.abs()
     };
     v * 2.0
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::GridPoint;
+
+    #[test]
+    fn test_neighbor() {
+        test_neighbor_help(GridPoint::new([3, 2]), &[(2, 2), (4, 2), (3, 1), (3, 3)]);
+        test_neighbor_help(GridPoint::new([0, 0]), &[(1, 0), (0, 1)]);
+    }
+
+    fn test_neighbor_help(gp: GridPoint, expected: &[(u64, u64)]) {
+        let neighbors = gp.neighbors().collect::<HashSet<_>>();
+        println!("neighbors: {neighbors:?}");
+        for (x, y) in expected.iter() {
+            let np = GridPoint::new([*x, *y]);
+            println!("np: {np}");
+            assert!(neighbors.contains(&np));
+        }
+        assert_eq!(neighbors.len(), expected.len());
+    }
 }

@@ -211,13 +211,14 @@ impl TrajectoryMap {
         self.cumulative_alignment
     }
 
-    pub fn open_frontier_points(&self) -> Vec<FloatPoint> {
+    pub fn open_frontier_points(&self) -> impl Iterator<Item=FloatPoint> {
+        self.open_frontier_grid_points().map(|gp| self.free_space.cell2meters(gp))
+    }
+
+    fn open_frontier_grid_points(&self) -> impl Iterator<Item=GridPoint> {
         self.free_space
-            .all_1s()
-            .iter()
-            .filter(|gp| self.has_unvisited_neighbor(*gp))
-            .map(|gp| self.free_space.cell2meters(*gp))
-            .collect()
+            .all_1s_iter()
+            .filter(|gp| self.has_unvisited_neighbor(gp))
     }
 
     pub fn has_unvisited_neighbor(&self, gp: &GridPoint) -> bool {
@@ -281,6 +282,10 @@ impl TrajectoryMap {
 
     pub fn as_python_dict(&self) -> Option<String> {
         self.position.map(|p| {
+            let mut frontier = BinaryGrid::new(self.free_space.width, self.free_space.height, self.free_space.meters_per_cell);
+            for gp in self.open_frontier_grid_points() {
+                frontier.set(gp, true);
+            }
             format!(
                 "{{ 'x': {}, 
 'y': {}, 
@@ -288,16 +293,18 @@ impl TrajectoryMap {
 'columns': {}, 
 'rows': {}, 
 'meters_per_cell': {},
-'open_frontier': {},
-'free_space': {}, 
-'obstacles': {}}}",
+'open_frontier_points': {},
+'open_frontier_grid': {},
+'free_space_grid': {}, 
+'obstacles_grid': {}}}",
                 p.pos[0],
                 p.pos[1],
                 p.theta,
                 self.free_space.cols,
                 self.free_space.rows,
                 self.free_space.meters_per_cell,
-                vec2pyliststr(&self.open_frontier_points()),
+                vec2pyliststr(&self.open_frontier_points().collect()),
+                vec2pyliststr(&frontier.bits.words()),
                 vec2pyliststr(&self.free_space.bits.words()),
                 vec2pyliststr(&self.obstacles.bits.words())
             )
@@ -407,6 +414,10 @@ impl BinaryGrid {
             meters_per_cell,
             bits: BitArray::zeros(rows * cols),
         }
+    }
+
+    pub fn all_1s_iter(&self) -> impl Iterator<Item=GridPoint> {
+        (0..self.cols).zip(0..self.rows).map(|(col, row)| GridPoint::new([col, row])).filter(|gp| self.is_set(*gp))
     }
 
     pub fn all_1s(&self) -> Vec<GridPoint> {

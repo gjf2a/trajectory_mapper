@@ -13,7 +13,7 @@ use crossbeam::atomic::AtomicCell;
 
 fn main() {
     let args = cmd::ArgVals::default();
-    if args.len() < 2 {
+    if args.len() < 1 {
         println!(
             "Usage: mapper_node robot_name [-spin_time=millseconds] [-dim=width,height] [-meters_per_cell=meters_per_cell]"
         );

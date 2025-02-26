@@ -1,3 +1,14 @@
+/* 
+Next steps:
+1. Create an exploration mode. It will package into its message the locations of
+each frontier cell that is wide enough to fit through. 
+2. Alternative to (1): Only send the frontier location closest to the robot.
+3. Create an A* pathfinder.
+4. Refactor the BinaryGrid so as to not require stating the size in advance.
+5. Get some practice with the particle filter, to figure out some noise models 
+that create practical improvements.
+ */
+
 use std::{
     cmp::max,
     collections::VecDeque,

@@ -48,13 +48,11 @@ impl<N: NumType, const S: usize> Point<N, S> {
 const OFFSETS: [i64; 3] = [-1, 0, 1];
 
 impl<const S: usize> Point<u64, S> {
-    pub fn neighbors(&self) -> impl Iterator<Item = Point<u64, S>> + use<'_, S> {
+    pub fn manhattan_neighbors(&self) -> impl Iterator<Item = Point<u64, S>> + use<'_, S> {
         OFFSETS
             .iter()
             .permutations(S)
-            .inspect(|c| println!("combo: {c:?}"))
             .filter(|c| c.iter().filter(|n| ***n != 0).count() == 1)
-            .inspect(|c| println!("nonzero combo: {c:?}"))
             .map(|c| {
                 let mut values = [0; S];
                 for i in 0..S {
@@ -62,9 +60,7 @@ impl<const S: usize> Point<u64, S> {
                 }
                 values
             })
-            .inspect(|c| println!("candidate: {c:?}"))
             .filter(|c| (0..S).all(|i| c[i] >= 0))
-            .inspect(|c| println!("survivor: {c:?}"))
             .map(|c| Point::<u64, S>::new(c.map(|v| v as u64)))
     }
 }
@@ -212,11 +208,9 @@ mod tests {
     }
 
     fn test_neighbor_help(gp: GridPoint, expected: &[(u64, u64)]) {
-        let neighbors = gp.neighbors().collect::<HashSet<_>>();
-        println!("neighbors: {neighbors:?}");
+        let neighbors = gp.manhattan_neighbors().collect::<HashSet<_>>();
         for (x, y) in expected.iter() {
             let np = GridPoint::new([*x, *y]);
-            println!("np: {np}");
             assert!(neighbors.contains(&np));
         }
         assert_eq!(neighbors.len(), expected.len());

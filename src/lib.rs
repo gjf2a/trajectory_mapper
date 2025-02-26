@@ -221,7 +221,7 @@ impl TrajectoryMap {
     }
 
     pub fn has_unvisited_neighbor(&self, gp: &GridPoint) -> bool {
-        for neighbor in gp.neighbors() {
+        for neighbor in gp.manhattan_neighbors() {
             if self.free_space.in_bounds(neighbor)
                 && !self.free_space.is_set(neighbor)
                 && !self.obstacles.is_set(neighbor)
@@ -434,7 +434,7 @@ impl BinaryGrid {
                 if self.is_set(gp) {
                     return Some(distance);
                 } else {
-                    for neighbor in gp.neighbors() {
+                    for neighbor in gp.manhattan_neighbors() {
                         queue.push_back((distance + 1, neighbor));
                     }
                 }

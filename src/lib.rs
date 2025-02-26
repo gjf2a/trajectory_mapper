@@ -211,6 +211,19 @@ impl TrajectoryMap {
         self.cumulative_alignment
     }
 
+    pub fn open_frontier_points(&self) -> Vec<FloatPoint> {
+        self.free_space.all_1s().iter().filter(|gp| self.is_open_frontier(*gp)).map(|gp| self.free_space.cell2meters(*gp)).collect()
+    }
+
+    pub fn is_open_frontier(&self, gp: &GridPoint) -> bool {
+        for neighbor in gp.neighbors() {
+            if self.free_space.in_bounds(neighbor) && !self.free_space.is_set(neighbor) && !self.obstacles.is_set(neighbor) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn grid_size(&self) -> GridPoint {
         self.free_space.grid_size()
     }
@@ -267,6 +280,7 @@ impl TrajectoryMap {
 'columns': {}, 
 'rows': {}, 
 'meters_per_cell': {},
+'open_frontier': {},
 'free_space': {}, 
 'obstacles': {}}}",
                 p.pos[0],
@@ -275,6 +289,7 @@ impl TrajectoryMap {
                 self.free_space.cols,
                 self.free_space.rows,
                 self.free_space.meters_per_cell,
+                vec2pyliststr(&self.open_frontier_points()),
                 vec2pyliststr(&self.free_space.bits.words()),
                 vec2pyliststr(&self.obstacles.bits.words())
             )

@@ -250,9 +250,14 @@ impl TrajectoryMap {
     pub fn as_python_dict(&self) -> Option<String> {
         self.position.map(|p| {
             format!(
-                "{{ 'x': {}, 'y': {}, 'theta': {}, 
-'columns': {}, 'rows': {}, 'meters_per_cell': {},
-'free_space': {}, 'obstacles': {}}}",
+                "{{ 'x': {}, 
+'y': {}, 
+'theta': {}, 
+'columns': {}, 
+'rows': {}, 
+'meters_per_cell': {},
+'free_space': {}, 
+'obstacles': {}}}",
                 p.pos[0],
                 p.pos[1],
                 p.theta,

@@ -7,6 +7,8 @@ use itertools::Itertools;
 use num_traits::{Num, cast::ToPrimitive};
 use trait_set::trait_set;
 
+use crate::{RobotMoveState, RobotPose};
+
 trait_set! {
     pub trait NumType = Display + ToPrimitive + Default + Num + Copy + AddAssign + SubAssign + MulAssign + DivAssign;
 }
@@ -162,4 +164,32 @@ impl<N: NumType, const S: usize> Div<N> for Point<N, S> {
         result /= rhs;
         result
     }
+}
+
+pub fn width_height_from(points: &Vec<(RobotPose, RobotMoveState)>) -> (f64, f64) {
+    let (mut min_x, mut min_y, mut max_x, mut max_y) = (0.0, 0.0, 0.0, 0.0);
+    for (pose, _) in points.iter() {
+        if pose.pos[0] < min_x {
+            min_x = pose.pos[0];
+        }
+        if pose.pos[0] > max_x {
+            max_x = pose.pos[0];
+        }
+        if pose.pos[1] < min_y {
+            min_y = pose.pos[1];
+        }
+        if pose.pos[1] > max_y {
+            max_y = pose.pos[1];
+        }
+    }
+    (breadth(min_x, max_x), breadth(min_y, max_y))
+}
+
+fn breadth(lo: f64, hi: f64) -> f64 {
+    let v = if lo.abs() > hi.abs() {
+        lo.abs()
+    } else {
+        hi.abs()
+    };
+    v * 2.0
 }

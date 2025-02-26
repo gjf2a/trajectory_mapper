@@ -1,7 +1,9 @@
-use pancurses::{endwin, initscr, noecho, Input};
-use std::{collections::VecDeque, env};
+use pancurses::{Input, endwin, initscr, noecho};
 use rand::Rng;
-use trajectory_mapper::{odometry_math::find_normalized_angle, particle_filter::ParticleFilter, point::Point, RobotMoveState, RobotPose, TrajectoryBuilder};
+use std::{collections::VecDeque, env};
+use trajectory_mapper::{
+    odometry_math::find_normalized_angle, particle_filter::ParticleFilter, point::{width_height_from, Point}, RobotMoveState, RobotPose, TrajectoryBuilder
+};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -21,8 +23,11 @@ fn main() {
     let mut filter = ParticleFilter::new(&map, 100, |p| {
         let mut rng = rand::rng();
         RobotPose {
-            pos: Point::new([p.pos[0] + rng.random_range(-0.2..0.2), p.pos[1] + rng.random_range(-0.2..0.2)]),
-            theta: find_normalized_angle(p.theta + rng.random_range(-0.2..0.2))
+            pos: Point::new([
+                p.pos[0] + rng.random_range(-0.2..0.2),
+                p.pos[1] + rng.random_range(-0.2..0.2),
+            ]),
+            theta: find_normalized_angle(p.theta + rng.random_range(-0.2..0.2)),
         }
     });
     visualize_map(
@@ -31,34 +36,6 @@ fn main() {
         points.iter().copied().collect(),
         100,
     );
-}
-
-fn width_height_from(points: &Vec<(RobotPose, RobotMoveState)>) -> (f64, f64) {
-    let (mut min_x, mut min_y, mut max_x, mut max_y) = (0.0, 0.0, 0.0, 0.0);
-    for (pose, _) in points.iter() {
-        if pose.pos[0] < min_x {
-            min_x = pose.pos[0];
-        }
-        if pose.pos[0] > max_x {
-            max_x = pose.pos[0];
-        }
-        if pose.pos[1] < min_y {
-            min_y = pose.pos[1];
-        }
-        if pose.pos[1] > max_y {
-            max_y = pose.pos[1];
-        }
-    }
-    (breadth(min_x, max_x), breadth(min_y, max_y))
-}
-
-fn breadth(lo: f64, hi: f64) -> f64 {
-    let v = if lo.abs() > hi.abs() {
-        lo.abs()
-    } else {
-        hi.abs()
-    };
-    v * 2.0
 }
 
 fn visualize_map<N: Clone + Fn(RobotPose) -> RobotPose>(

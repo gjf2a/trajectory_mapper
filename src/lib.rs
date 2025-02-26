@@ -12,6 +12,7 @@ use odometry_math::find_roll_pitch_yaw;
 use point::{FloatPoint, GridPoint};
 use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
+pub mod cmd;
 pub mod odometry_math;
 pub mod particle_filter;
 pub mod point;

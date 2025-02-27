@@ -1,9 +1,8 @@
 use futures::stream::StreamExt;
-use r2r::geometry_msgs::msg::TwistStamped;
 use r2r::{Context, Node, QosProfile, nav_msgs::msg::Odometry};
 use r2r::{Publisher, std_msgs::msg::String as Ros2String};
 use trajectory_mapper::cmd::ArgVals;
-use trajectory_mapper::{TrajectoryBuilder, TrajectoryMap, cmd};
+use trajectory_mapper::{cmd, RobotMoveState, TrajectoryBuilder, TrajectoryMap};
 
 use std::sync::Arc;
 
@@ -56,7 +55,7 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
     let odom_subscriber =
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
     let avoid_subscriber =
-        node.subscribe::<TwistStamped>(avoid_topic.as_str(), QosProfile::sensor_data())?;
+        node.subscribe::<Ros2String>(avoid_topic.as_str(), QosProfile::sensor_data())?;
     let map = builder.build();
     let dimensions = map.grid_size();
     let map = Arc::new(Mutex::new(map));
@@ -76,7 +75,7 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
     println!("Publish 'clear' or 'avoid' to {avoid_topic} to indicate whether robot is avoiding an obstacle");
     smol::block_on(async {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();
-        smol::spawn(vel_handler(avoid_subscriber, map.clone())).detach();
+        smol::spawn(avoid_handler(avoid_subscriber, map.clone())).detach();
         while running.load() {
             node.spin_once(std::time::Duration::from_millis(period));
         }
@@ -110,14 +109,19 @@ async fn odom_handler<S>(
     }
 }
 
-async fn vel_handler<S>(mut vel_subscriber: S, map: Arc<Mutex<TrajectoryMap>>)
+async fn avoid_handler<S>(mut avoid_subscriber: S, map: Arc<Mutex<TrajectoryMap>>)
 where
-    S: Stream<Item = TwistStamped> + Unpin,
+    S: Stream<Item = Ros2String> + Unpin,
 {
     loop {
-        if let Some(vel_msg) = vel_subscriber.next().await {
+        if let Some(avoid_msg) = avoid_subscriber.next().await {
             let mut map = map.lock().await;
-            map.add_move(vel_msg.into());
+            let move_state = match avoid_msg.data.as_str() {
+                "avoid" => RobotMoveState::Turning,
+                // Dodgy but effective. Error-handling is not a strong point of ROS2.
+                _ => RobotMoveState::Forward  
+            };
+            map.add_move(move_state);
         }
     }
 }

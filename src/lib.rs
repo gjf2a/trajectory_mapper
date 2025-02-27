@@ -1,12 +1,10 @@
 /*
 Next steps:
-1. Create an exploration mode. It will package into its message the locations of
-each frontier cell that is wide enough to fit through.
-2. Alternative to (1): Only send the frontier location closest to the robot.
-3. Create an A* pathfinder.
-4. Refactor the BinaryGrid so as to not require stating the size in advance.
-5. Get some practice with the particle filter, to figure out some noise models
-that create practical improvements.
+1. Create an A* pathfinder.
+2. Refactor the BinaryGrid so as to not require stating the size in advance.
+3. Get some practice with the particle filter, to figure out some noise models
+that create practical improvements. One idea might be to look for cells that are both
+freespace and obstacles.
  */
 
 use std::{
@@ -211,16 +209,6 @@ impl TrajectoryMap {
         self.cumulative_alignment
     }
 
-    pub fn open_frontier_points(&self) -> impl Iterator<Item=FloatPoint> {
-        self.open_frontier_grid_points().map(|gp| self.free_space.cell2meters(gp))
-    }
-
-    fn open_frontier_grid_points(&self) -> impl Iterator<Item=GridPoint> {
-        self.free_space
-            .all_1s_iter()
-            .filter(|gp| self.has_unvisited_neighbor(gp))
-    }
-
     pub fn has_unvisited_neighbor(&self, gp: &GridPoint) -> bool {
         for neighbor in gp.manhattan_neighbors() {
             if self.free_space.in_bounds(neighbor)
@@ -282,10 +270,6 @@ impl TrajectoryMap {
 
     pub fn as_python_dict(&self) -> Option<String> {
         self.position.map(|p| {
-            let mut frontier = BinaryGrid::new(self.free_space.width, self.free_space.height, self.free_space.meters_per_cell);
-            for gp in self.open_frontier_grid_points() {
-                frontier.set(gp, true);
-            }
             format!(
                 "{{ 'x': {}, 
 'y': {}, 
@@ -293,8 +277,6 @@ impl TrajectoryMap {
 'columns': {}, 
 'rows': {}, 
 'meters_per_cell': {},
-'open_frontier_points': {},
-'open_frontier_grid': {},
 'free_space_grid': {}, 
 'obstacles_grid': {}}}",
                 p.pos[0],
@@ -303,8 +285,6 @@ impl TrajectoryMap {
                 self.free_space.cols,
                 self.free_space.rows,
                 self.free_space.meters_per_cell,
-                vec2pyliststr(&self.open_frontier_points().collect()),
-                vec2pyliststr(&frontier.bits.words()),
                 vec2pyliststr(&self.free_space.bits.words()),
                 vec2pyliststr(&self.obstacles.bits.words())
             )

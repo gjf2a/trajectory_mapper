@@ -48,15 +48,15 @@ fn parse_args(args: &ArgVals) -> anyhow::Result<(u64, TrajectoryBuilder)> {
 
 fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::Result<()> {
     let odom_topic = format!("/{robot_name}/odom");
-    let vel_topic = format!("/{robot_name}/cmd_vel_stamped");
+    let avoid_topic = format!("{robot_name}_map_avoiding");
     let map_topic_name = format!("/{robot_name}_trajectory_map");
     let node_name = format!("{robot_name}_trajectory_mapper");
     let context = Context::create()?;
     let mut node = Node::create(context, node_name.as_str(), "")?;
     let odom_subscriber =
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
-    let vel_subscriber =
-        node.subscribe::<TwistStamped>(vel_topic.as_str(), QosProfile::sensor_data())?;
+    let avoid_subscriber =
+        node.subscribe::<TwistStamped>(avoid_topic.as_str(), QosProfile::sensor_data())?;
     let map = builder.build();
     let dimensions = map.grid_size();
     let map = Arc::new(Mutex::new(map));
@@ -71,10 +71,12 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
         "Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n"
     );
     println!("Grid dimensions: {dimensions}");
-    println!("Starting {node_name}; subscribe to {map_topic_name}");
+    println!("Starting {node_name}");
+    println!("Subscribe to {map_topic_name} for map information");
+    println!("Publish 'clear' or 'avoid' to {avoid_topic} to indicate whether robot is avoiding an obstacle");
     smol::block_on(async {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();
-        smol::spawn(vel_handler(vel_subscriber, map.clone())).detach();
+        smol::spawn(vel_handler(avoid_subscriber, map.clone())).detach();
         while running.load() {
             node.spin_once(std::time::Duration::from_millis(period));
         }

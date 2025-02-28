@@ -66,9 +66,6 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
 
     let publisher =
         node.create_publisher::<Ros2String>(map_topic_name.as_str(), QosProfile::sensor_data())?;
-    println!(
-        "Odometry reset:\nros2 service call /{robot_name}/reset_pose irobot_create_msgs/srv/ResetPose\n"
-    );
     println!("Grid dimensions: {dimensions}");
     println!("Starting {node_name}");
     println!("Subscribe to {map_topic_name} for map information");

@@ -2,7 +2,7 @@ use futures::stream::StreamExt;
 use r2r::{Context, Node, QosProfile, nav_msgs::msg::Odometry};
 use r2r::{Publisher, std_msgs::msg::String as Ros2String};
 use trajectory_mapper::cmd::ArgVals;
-use trajectory_mapper::{cmd, RobotMoveState, TrajectoryBuilder, TrajectoryMap};
+use trajectory_mapper::{RobotMoveState, TrajectoryBuilder, TrajectoryMap, cmd};
 
 use std::sync::Arc;
 
@@ -72,7 +72,9 @@ fn runner(robot_name: &str, period: u64, builder: TrajectoryBuilder) -> anyhow::
     println!("Grid dimensions: {dimensions}");
     println!("Starting {node_name}");
     println!("Subscribe to {map_topic_name} for map information");
-    println!("Publish 'clear' or 'avoid' to {avoid_topic} to indicate whether robot is avoiding an obstacle");
+    println!(
+        "Publish 'clear' or 'avoid' to {avoid_topic} to indicate whether robot is avoiding an obstacle"
+    );
     smol::block_on(async {
         smol::spawn(odom_handler(odom_subscriber, map.clone(), publisher)).detach();
         smol::spawn(avoid_handler(avoid_subscriber, map.clone())).detach();
@@ -119,7 +121,7 @@ where
             let move_state = match avoid_msg.data.as_str() {
                 "avoid" => RobotMoveState::Turning,
                 // Dodgy but effective. Error-handling is not a strong point of ROS2.
-                _ => RobotMoveState::Forward  
+                _ => RobotMoveState::Forward,
             };
             map.add_move(move_state);
         }

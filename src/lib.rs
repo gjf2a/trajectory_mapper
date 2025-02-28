@@ -185,7 +185,7 @@ impl TrajectoryMap {
                 self.turn_in_progress = false;
                 self.position = Some(pose);
                 self.free_space
-                    .set_circle(pose.pos, self.robot_radius_meters);
+                    .set_circle(pose.pos, self.reduced_robot_footprint());
             }
             RobotMoveState::Turning => {
                 if !self.turn_in_progress {
@@ -199,6 +199,15 @@ impl TrajectoryMap {
             }
         }
         self.cumulative_alignment += current_move_alignment(self);
+    }
+
+    fn reduced_robot_footprint(&self) -> f64 {
+        let candidate = self.robot_radius_meters - self.free_space.meters_per_cell;
+        if candidate < self.free_space.meters_per_cell {
+            self.free_space.meters_per_cell
+        } else {
+            candidate
+        }
     }
 
     pub fn add_move(&mut self, move_state: RobotMoveState) {
@@ -396,8 +405,11 @@ impl BinaryGrid {
         }
     }
 
-    pub fn all_1s_iter(&self) -> impl Iterator<Item=GridPoint> {
-        (0..self.cols).zip(0..self.rows).map(|(col, row)| GridPoint::new([col, row])).filter(|gp| self.is_set(*gp))
+    pub fn all_1s_iter(&self) -> impl Iterator<Item = GridPoint> {
+        (0..self.cols)
+            .zip(0..self.rows)
+            .map(|(col, row)| GridPoint::new([col, row]))
+            .filter(|gp| self.is_set(*gp))
     }
 
     pub fn all_1s(&self) -> Vec<GridPoint> {

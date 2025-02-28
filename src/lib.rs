@@ -201,12 +201,17 @@ impl TrajectoryMap {
         self.cumulative_alignment += current_move_alignment(self);
     }
 
+    pub fn meters_per_cell(&self) -> f64 {
+        self.free_space.meters_per_cell
+    }
+
     fn reduced_robot_footprint(&self) -> f64 {
-        let candidate = self.robot_radius_meters - self.free_space.meters_per_cell;
-        if candidate < self.free_space.meters_per_cell {
-            self.free_space.meters_per_cell
+        if self.robot_radius_meters < self.meters_per_cell() {
+            self.robot_radius_meters
+        } else if self.robot_radius_meters < 2.0 * self.meters_per_cell() {
+            self.meters_per_cell()
         } else {
-            candidate
+            self.robot_radius_meters - self.meters_per_cell()
         }
     }
 

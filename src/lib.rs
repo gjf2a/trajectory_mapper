@@ -300,7 +300,6 @@ impl TrajectoryMap {
                 "{{ 'x': {}, 
 'y': {}, 
 'theta': {}, 
-'robot_radius_meters': {},
 'columns': {}, 
 'rows': {}, 
 'meters_per_cell': {},
@@ -309,7 +308,7 @@ impl TrajectoryMap {
                 p.pos[0],
                 p.pos[1],
                 p.theta,
-                self.robot_radius_meters,
+                //self.robot_radius_meters, // I should add this eventually.
                 self.free_space.cols,
                 self.free_space.rows,
                 self.free_space.meters_per_cell,
@@ -461,9 +460,9 @@ impl BinaryGrid {
         let width = cols as f64 * meters_per_cell;
         let height = rows as f64 * meters_per_cell;
         let mut bits = BitArray::default();
-        for value in ints[1..ints.len() - 1].split(", ") {
+        for value in ints[1..ints.len() - 1].split(",") {
             println!("value: \"{value}\"");
-            let value = value.parse::<u64>().unwrap();
+            let value = value.trim().parse::<u64>().unwrap();
             bits.push_word(value);
         }
         Self {
@@ -579,7 +578,7 @@ impl BinaryGrid {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BinaryGrid, point::FloatPoint};
+    use crate::{point::FloatPoint, BinaryGrid, TrajectoryMap};
 
     const CIRCLE_1_STR: &str = "00000000000000000000
 00000000100000000000
@@ -644,5 +643,12 @@ mod tests {
         grid.set_circle(FloatPoint::new([5.0, -1.5]), 1.5);
         println!("{grid}");
         assert_eq!(format!("{grid}"), EDGE_STR);
+    }
+
+    #[test]
+    fn test_parse() {
+        let map_input_str = std::fs::read_to_string("first_improved_map_reformatted").unwrap();
+        let map = TrajectoryMap::from_python_dict(map_input_str.as_str());
+        assert_eq!(map_input_str, map.as_python_dict().unwrap());
     }
 }

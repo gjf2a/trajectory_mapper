@@ -25,6 +25,7 @@ pub mod cmd;
 pub mod odometry_math;
 pub mod particle_filter;
 pub mod point;
+pub mod search_iter;
 
 /*
 Eventually, I would like to create a ROS2 message like this:
@@ -246,6 +247,10 @@ impl TrajectoryMap {
         )
     }
 
+    pub fn path_to(&self, goal: FloatPoint) -> Option<Vec<FloatPoint>> {
+        todo!("Everything")
+    }
+
     pub fn free_space_within(
         &self,
         grid_row: u64,
@@ -288,6 +293,7 @@ impl TrajectoryMap {
                 "{{ 'x': {}, 
 'y': {}, 
 'theta': {}, 
+'robot_radius_meters': {},
 'columns': {}, 
 'rows': {}, 
 'meters_per_cell': {},
@@ -296,6 +302,7 @@ impl TrajectoryMap {
                 p.pos[0],
                 p.pos[1],
                 p.theta,
+                self.robot_radius_meters,
                 self.free_space.cols,
                 self.free_space.rows,
                 self.free_space.meters_per_cell,
@@ -303,6 +310,36 @@ impl TrajectoryMap {
                 vec2pyliststr(&self.obstacles.bits.words())
             )
         })
+    }
+
+    pub fn from_python_dict(pd: &str) -> Self {
+        let mut result = TrajectoryBuilder::default().build();
+        let mut x = None;
+        let mut y = None;
+        let mut theta = None;
+        let mut columns = None;
+        let mut rows = None;
+        let mut meters_per_cell = None;
+        for pairing in pd[1..pd.len() - 1].trim().split(',') {
+            let mut parts = pairing.split(": ");
+            let key = parts.next().unwrap().trim();
+            let value = parts.next().unwrap().trim();
+            println!("key: \"{key}\" value: \"{value}\"");
+            match key {
+                "'x'" => x = Some(value.parse::<f64>().unwrap()),
+                "'y'" => y = Some(value.parse::<f64>().unwrap()),
+                "'theta'" => theta = Some(value.parse::<f64>().unwrap()),
+                "'robot_radius_meters'" => result.robot_radius_meters = value.parse::<f64>().unwrap(),
+                "'columns'" => columns = Some(value.parse::<u64>().unwrap()),
+                "'rows'" => rows = Some(value.parse::<u64>().unwrap()),
+                "'meters_per_cell'" => meters_per_cell = Some(value.parse::<f64>().unwrap()),
+                "'free_space_grid'" => result.free_space = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
+                "'obstacles_grid'" => result.obstacles = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
+                _ => panic!("Unrecognized Python dictionary key: \"{key}\"")
+            }
+        }
+        result.position = Some(RobotPose { pos: FloatPoint::new([x.unwrap(), y.unwrap()]), theta: theta.unwrap() });
+        result
     }
 }
 
@@ -407,6 +444,25 @@ impl BinaryGrid {
             height,
             meters_per_cell,
             bits: BitArray::zeros(rows * cols),
+        }
+    }
+
+    pub fn from_python_dict(cols: u64, rows: u64, meters_per_cell: f64, ints: &str) -> Self {
+        let width = cols as f64 * meters_per_cell;
+        let height = rows as f64 * meters_per_cell;
+        let mut bits = BitArray::default();
+        for value in ints[1..ints.len() - 1].split(", ") {
+            println!("value: \"{value}\"");
+            let value = value.parse::<u64>().unwrap();
+            bits.push_word(value);
+        }
+        Self {
+            rows,
+            cols,
+            width,
+            height,
+            meters_per_cell,
+            bits,
         }
     }
 

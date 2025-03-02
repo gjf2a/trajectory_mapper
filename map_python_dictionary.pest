@@ -1,0 +1,8 @@
+dictionary = { "{" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
+pair = { string ~ ":" ~ value }
+string = { "'" ~ (!"'" ~ ANY)* ~ "'" }
+value = { float | int | list | string }
+float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+int = @{ "-"? ~ ASCII_DIGIT+ }
+list = { "[" ~ (value ~ ("," ~ value)*)? ~ "]" }
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }

@@ -277,7 +277,17 @@ impl TrajectoryMap {
             },
             |p| end.manhattan_distance(*p),
         );
-        todo!("Everything")
+        let search_outcome = searcher.by_ref().find(|p| *p == end);
+        match search_outcome {
+            None => None,
+            Some(p) => Some(
+                searcher
+                    .path_back_from(&p)
+                    .iter()
+                    .map(|p| self.converter.cell2meters(*p))
+                    .collect(),
+            ),
+        }
     }
 
     pub fn free_space_within(

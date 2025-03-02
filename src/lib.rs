@@ -461,7 +461,6 @@ impl BinaryGrid {
         let height = rows as f64 * meters_per_cell;
         let mut bits = BitArray::default();
         for value in ints[1..ints.len() - 1].split(",") {
-            println!("value: \"{value}\"");
             let value = value.trim().parse::<u64>().unwrap();
             bits.push_word(value);
         }
@@ -559,15 +558,10 @@ impl BinaryGrid {
         let end = center + radius_offset;
         let grid_start = self.meters2cell(start);
         let grid_end = self.meters2cell(end);
-        //println!("grid_start: {grid_start}\tgrid_end: {grid_end}");
         for x_grid in grid_start[0]..=grid_end[0] {
             for y_grid in grid_start[1]..=grid_end[1] {
                 let g = GridPoint::new([x_grid, y_grid]);
                 let pt = self.cell2meters(g);
-                /*println!(
-                    "g: {g} pt: {pt} center: {center} distance: {} radius: {radius}",
-                    pt.euclidean_distance(center)
-                );*/
                 if pt.euclidean_distance(center) <= radius {
                     self.set(g, true);
                 }

@@ -23,6 +23,7 @@ use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
 use pest::Parser;
 use pest_derive::Parser;
+use search_iter::PrioritySearchIter;
 
 #[derive(Parser)]
 #[grammar = "map_python_dictionary.pest"]
@@ -171,6 +172,7 @@ impl TrajectoryBuilder {
             free_space: BinaryGrid::new(self.width, self.height, self.meters_per_cell),
             turn_in_progress: false,
             cumulative_alignment: 0.0,
+            converter: GridPointConverter::new(self.meters_per_cell, self.width, self.height),
         }
     }
 }
@@ -184,6 +186,7 @@ pub struct TrajectoryMap {
     move_state: RobotMoveState,
     turn_in_progress: bool,
     cumulative_alignment: f64,
+    converter: GridPointConverter,
 }
 
 impl TrajectoryMap {
@@ -210,7 +213,7 @@ impl TrajectoryMap {
     }
 
     pub fn meters_per_cell(&self) -> f64 {
-        self.free_space.meters_per_cell
+        self.converter.meters_per_cell
     }
 
     fn reduced_robot_footprint(&self) -> f64 {
@@ -250,11 +253,30 @@ impl TrajectoryMap {
     pub fn robot_grid_radius(&self) -> u64 {
         max(
             1,
-            (self.robot_radius_meters / self.free_space.meters_per_cell) as u64,
+            (self.robot_radius_meters / self.converter.meters_per_cell) as u64,
         )
     }
 
     pub fn path_to(&self, goal: FloatPoint) -> Option<Vec<FloatPoint>> {
+        let start = self.free_space.meters2cell(self.position.unwrap().pos);
+        let end = self.free_space.meters2cell(goal);
+        let mut searcher = PrioritySearchIter::a_star(
+            start,
+            |p| {
+                p.manhattan_neighbors()
+                    .filter(|p| {
+                        self.converter
+                            .circle_grid_points(
+                                self.converter.cell2meters(*p),
+                                self.robot_radius_meters,
+                            )
+                            .all(|n| self.free_space.is_set(n) && !self.obstacles.is_set(n))
+                    })
+                    .map(|p| (p, 1))
+                    .collect()
+            },
+            |p| end.manhattan_distance(*p),
+        );
         todo!("Everything")
     }
 
@@ -311,7 +333,7 @@ impl TrajectoryMap {
                 //self.robot_radius_meters, // I should add this eventually.
                 self.free_space.cols,
                 self.free_space.rows,
-                self.free_space.meters_per_cell,
+                self.converter.meters_per_cell,
                 vec2pyliststr(&self.free_space.bits.words()),
                 vec2pyliststr(&self.obstacles.bits.words())
             )
@@ -336,18 +358,37 @@ impl TrajectoryMap {
                     "'x'" => x = Some(value.parse::<f64>().unwrap()),
                     "'y'" => y = Some(value.parse::<f64>().unwrap()),
                     "'theta'" => theta = Some(value.parse::<f64>().unwrap()),
-                    "'robot_radius_meters'" => result.robot_radius_meters = value.parse::<f64>().unwrap(),
+                    "'robot_radius_meters'" => {
+                        result.robot_radius_meters = value.parse::<f64>().unwrap()
+                    }
                     "'columns'" => columns = Some(value.parse::<u64>().unwrap()),
                     "'rows'" => rows = Some(value.parse::<u64>().unwrap()),
                     "'meters_per_cell'" => meters_per_cell = Some(value.parse::<f64>().unwrap()),
-                    "'free_space_grid'" => result.free_space = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
-                    "'obstacles_grid'" => result.obstacles = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
-                    _ => panic!("Unrecognized Python dictionary key: \"{key}\"")
+                    "'free_space_grid'" => {
+                        result.free_space = BinaryGrid::from_python_dict(
+                            columns.unwrap(),
+                            rows.unwrap(),
+                            meters_per_cell.unwrap(),
+                            value,
+                        )
+                    }
+                    "'obstacles_grid'" => {
+                        result.obstacles = BinaryGrid::from_python_dict(
+                            columns.unwrap(),
+                            rows.unwrap(),
+                            meters_per_cell.unwrap(),
+                            value,
+                        )
+                    }
+                    _ => panic!("Unrecognized Python dictionary key: \"{key}\""),
                 }
             }
         }
-        
-        result.position = Some(RobotPose { pos: FloatPoint::new([x.unwrap(), y.unwrap()]), theta: theta.unwrap() });
+
+        result.position = Some(RobotPose {
+            pos: FloatPoint::new([x.unwrap(), y.unwrap()]),
+            theta: theta.unwrap(),
+        });
         result
     }
 }
@@ -409,6 +450,52 @@ fn vec2pyliststr<T: Display>(v: &Vec<T>) -> String {
     format!("[{}]", strs.join(","))
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct GridPointConverter {
+    meters_per_cell: f64,
+    width: f64,
+    height: f64,
+}
+
+impl GridPointConverter {
+    pub fn new(meters_per_cell: f64, width: f64, height: f64) -> Self {
+        Self {
+            meters_per_cell,
+            width,
+            height,
+        }
+    }
+
+    pub fn cell2meters(&self, cell: GridPoint) -> FloatPoint {
+        (FloatPoint::new([cell[0] as f64, cell[1] as f64]) * self.meters_per_cell) - self.offset()
+    }
+
+    pub fn meters2cell(&self, meters: FloatPoint) -> GridPoint {
+        let scaled = (meters + self.offset()) / self.meters_per_cell;
+        GridPoint::new([scaled[0] as u64, scaled[1] as u64])
+    }
+
+    fn offset(&self) -> FloatPoint {
+        FloatPoint::new([self.width, self.height]) / 2.0
+    }
+
+    pub fn circle_grid_points(
+        &self,
+        center: FloatPoint,
+        radius: f64,
+    ) -> impl Iterator<Item = GridPoint> {
+        let radius_offset = FloatPoint::of(radius);
+        let start = center - radius_offset;
+        let end = center + radius_offset;
+        let grid_start = self.meters2cell(start);
+        let grid_end = self.meters2cell(end);
+        (grid_start[0]..=grid_end[0])
+            .zip(grid_start[1]..=grid_end[1])
+            .map(|(col, row)| GridPoint::new([col, row]))
+            .filter(move |gp| self.cell2meters(*gp).euclidean_distance(center) <= radius)
+    }
+}
+
 /*
 Details
 * Reset odom before starting
@@ -419,9 +506,7 @@ Details
 pub struct BinaryGrid {
     rows: u64,
     cols: u64,
-    width: f64,
-    height: f64,
-    meters_per_cell: f64,
+    converter: GridPointConverter,
     bits: BitArray,
 }
 
@@ -446,14 +531,21 @@ impl BinaryGrid {
     pub fn new(width: f64, height: f64, meters_per_cell: f64) -> Self {
         let cols = max(1, (width / meters_per_cell) as u64);
         let rows = max(1, (height / meters_per_cell) as u64);
+        let converter = GridPointConverter::new(meters_per_cell, width, height);
         Self {
             rows,
             cols,
-            width,
-            height,
-            meters_per_cell,
+            converter,
             bits: BitArray::zeros(rows * cols),
         }
+    }
+
+    pub fn blank_copy(&self) -> Self {
+        Self::new(
+            self.converter.width,
+            self.converter.height,
+            self.converter.meters_per_cell,
+        )
     }
 
     pub fn from_python_dict(cols: u64, rows: u64, meters_per_cell: f64, ints: &str) -> Self {
@@ -467,9 +559,7 @@ impl BinaryGrid {
         Self {
             rows,
             cols,
-            width,
-            height,
-            meters_per_cell,
+            converter: GridPointConverter::new(meters_per_cell, width, height),
             bits,
         }
     }
@@ -497,7 +587,7 @@ impl BinaryGrid {
     /// Performs breadth-first search to give the Manhattan distance
     /// to the closest 1 to `gp`
     pub fn closest_1_to(&self, gp: GridPoint) -> Option<u64> {
-        let mut visited = Self::new(self.width, self.height, self.meters_per_cell);
+        let mut visited = self.blank_copy();
         let mut queue = VecDeque::new();
         queue.push_back((0, gp));
         while let Some((distance, point)) = queue.pop_front() {
@@ -539,40 +629,26 @@ impl BinaryGrid {
         }
     }
 
-    fn offset(&self) -> FloatPoint {
-        FloatPoint::new([self.width, self.height]) / 2.0
-    }
-
     pub fn cell2meters(&self, cell: GridPoint) -> FloatPoint {
-        (FloatPoint::new([cell[0] as f64, cell[1] as f64]) * self.meters_per_cell) - self.offset()
+        self.converter.cell2meters(cell)
     }
 
     pub fn meters2cell(&self, meters: FloatPoint) -> GridPoint {
-        let scaled = (meters + self.offset()) / self.meters_per_cell;
-        GridPoint::new([scaled[0] as u64, scaled[1] as u64])
+        self.converter.meters2cell(meters)
     }
 
     pub fn set_circle(&mut self, center: FloatPoint, radius: f64) {
-        let radius_offset = FloatPoint::of(radius);
-        let start = center - radius_offset;
-        let end = center + radius_offset;
-        let grid_start = self.meters2cell(start);
-        let grid_end = self.meters2cell(end);
-        for x_grid in grid_start[0]..=grid_end[0] {
-            for y_grid in grid_start[1]..=grid_end[1] {
-                let g = GridPoint::new([x_grid, y_grid]);
-                let pt = self.cell2meters(g);
-                if pt.euclidean_distance(center) <= radius {
-                    self.set(g, true);
-                }
-            }
+        let converter = self.converter;
+        let circle_points = converter.circle_grid_points(center, radius);
+        for circle_point in circle_points {
+            self.set(circle_point, true);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{point::FloatPoint, BinaryGrid, TrajectoryMap};
+    use crate::{BinaryGrid, TrajectoryMap, point::FloatPoint};
 
     const CIRCLE_1_STR: &str = "00000000000000000000
 00000000100000000000

@@ -1,5 +1,6 @@
 use std::{
     fmt::Display,
+    iter::Sum,
     ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
@@ -10,7 +11,7 @@ use trait_set::trait_set;
 use crate::{RobotMoveState, RobotPose};
 
 trait_set! {
-    pub trait NumType = Display + ToPrimitive + Default + Num + Copy + AddAssign + SubAssign + MulAssign + DivAssign;
+    pub trait NumType = Display + ToPrimitive + Default + Num + Copy + AddAssign + SubAssign + MulAssign + DivAssign + PartialOrd + Sum;
 }
 
 pub type GridPoint = Point<u64, 2>;
@@ -43,6 +44,10 @@ impl<N: NumType, const S: usize> Point<N, S> {
             .sum::<f64>()
             .sqrt()
     }
+
+    pub fn manhattan_distance(&self, other: Point<N, S>) -> N {
+        (0..S).map(|i| abs_difference(self[i], other[i])).sum()
+    }
 }
 
 const OFFSETS: [i64; 3] = [-1, 0, 1];
@@ -63,6 +68,10 @@ impl<const S: usize> Point<u64, S> {
             .filter(|c| (0..S).all(|i| c[i] >= 0))
             .map(|c| Point::<u64, S>::new(c.map(|v| v as u64)))
     }
+}
+
+pub fn abs_difference<N: NumType>(a: N, b: N) -> N {
+    if a < b { b - a } else { a - b }
 }
 
 impl<N: NumType, const S: usize> Index<usize> for Point<N, S> {

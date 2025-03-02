@@ -189,7 +189,7 @@ impl<N: Estimator, T: SearchNode, S: FnMut(&T) -> Vec<(T, N)>, H: Fn(&T) -> N> I
 
 #[cfg(test)]
 mod tests {
-    use crate::{point::FloatPoint, TrajectoryMap};
+    use crate::{TrajectoryMap, point::FloatPoint};
 
     #[test]
     fn test_a_star() {
@@ -202,7 +202,7 @@ mod tests {
     }
 }
 
-/* 
+/*
 
 // At some point, I'll want to pay down some technical debt by rewriting these
 // unit tests.

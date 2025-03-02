@@ -189,13 +189,16 @@ impl<N: Estimator, T: SearchNode, S: FnMut(&T) -> Vec<(T, N)>, H: Fn(&T) -> N> I
 
 #[cfg(test)]
 mod tests {
-    use crate::TrajectoryMap;
+    use crate::{point::FloatPoint, TrajectoryMap};
 
     #[test]
     fn test_a_star() {
         let map = std::fs::read_to_string("first_improved_map").unwrap();
         let map = TrajectoryMap::from_python_dict(map.as_str());
         println!("{:?}", map.position);
+        let goal = FloatPoint::new([-1.184650182723999 + 2.4, -0.7561780214309692]);
+        let route = map.path_to(goal);
+        assert!(route.is_some());
     }
 }
 

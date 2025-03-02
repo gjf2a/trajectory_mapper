@@ -21,6 +21,13 @@ use odometry_math::find_roll_pitch_yaw;
 use point::{FloatPoint, GridPoint};
 use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
+use pest::Parser;
+use pest_derive::Parser;
+
+#[derive(Parser)]
+#[grammar = "map_python_dictionary.pest"]
+struct PythonMapParser;
+
 pub mod cmd;
 pub mod odometry_math;
 pub mod particle_filter;
@@ -320,24 +327,27 @@ impl TrajectoryMap {
         let mut columns = None;
         let mut rows = None;
         let mut meters_per_cell = None;
-        for pairing in pd[1..pd.len() - 1].trim().split(',') {
-            let mut parts = pairing.split(": ");
-            let key = parts.next().unwrap().trim();
-            let value = parts.next().unwrap().trim();
-            println!("key: \"{key}\" value: \"{value}\"");
-            match key {
-                "'x'" => x = Some(value.parse::<f64>().unwrap()),
-                "'y'" => y = Some(value.parse::<f64>().unwrap()),
-                "'theta'" => theta = Some(value.parse::<f64>().unwrap()),
-                "'robot_radius_meters'" => result.robot_radius_meters = value.parse::<f64>().unwrap(),
-                "'columns'" => columns = Some(value.parse::<u64>().unwrap()),
-                "'rows'" => rows = Some(value.parse::<u64>().unwrap()),
-                "'meters_per_cell'" => meters_per_cell = Some(value.parse::<f64>().unwrap()),
-                "'free_space_grid'" => result.free_space = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
-                "'obstacles_grid'" => result.obstacles = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
-                _ => panic!("Unrecognized Python dictionary key: \"{key}\"")
+        let parsed = PythonMapParser::parse(Rule::dictionary, pd.trim()).unwrap();
+        for pair in parsed {
+            for a in pair.into_inner() {
+                let mut a_iter = a.into_inner();
+                let key = a_iter.next().unwrap().as_str();
+                let value = a_iter.next().unwrap().as_str();
+                match key {
+                    "'x'" => x = Some(value.parse::<f64>().unwrap()),
+                    "'y'" => y = Some(value.parse::<f64>().unwrap()),
+                    "'theta'" => theta = Some(value.parse::<f64>().unwrap()),
+                    "'robot_radius_meters'" => result.robot_radius_meters = value.parse::<f64>().unwrap(),
+                    "'columns'" => columns = Some(value.parse::<u64>().unwrap()),
+                    "'rows'" => rows = Some(value.parse::<u64>().unwrap()),
+                    "'meters_per_cell'" => meters_per_cell = Some(value.parse::<f64>().unwrap()),
+                    "'free_space_grid'" => result.free_space = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
+                    "'obstacles_grid'" => result.obstacles = BinaryGrid::from_python_dict(columns.unwrap(), rows.unwrap(), meters_per_cell.unwrap(), value),
+                    _ => panic!("Unrecognized Python dictionary key: \"{key}\"")
+                }
             }
         }
+        
         result.position = Some(RobotPose { pos: FloatPoint::new([x.unwrap(), y.unwrap()]), theta: theta.unwrap() });
         result
     }

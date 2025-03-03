@@ -682,15 +682,15 @@ mod tests {
         assert_eq!(format!("{grid}"), CIRCLE_1_STR);
     }
 
-    const CIRCLE_2_STR: &str = "00000\n00100\n";
+    const CIRCLE_2_STR: &str = "00000\n00110\n00110\n";
 
     #[test]
     fn test2() {
-        let mut grid = BinaryGrid::new(10.0, 4.0, 2.0);
+        let mut grid = BinaryGrid::new(10.0, 6.0, 2.0);
         let dim = grid.grid_size();
         assert_eq!(dim[0], 5);
-        assert_eq!(dim[1], 2);
-        grid.set_circle(FloatPoint::new([-1.0, 0.0]), 1.5);
+        assert_eq!(dim[1], 3);
+        grid.set_circle(FloatPoint::new([0.0, 0.0]), 2.0);
         println!("{grid}");
         assert_eq!(format!("{grid}"), CIRCLE_2_STR);
     }

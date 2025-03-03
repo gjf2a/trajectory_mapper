@@ -17,6 +17,7 @@ use std::{
 
 use anyhow::{Context, anyhow};
 use bits::BitArray;
+use itertools::Itertools;
 use odometry_math::find_roll_pitch_yaw;
 use point::{FloatPoint, GridPoint};
 use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
@@ -277,7 +278,7 @@ impl TrajectoryMap {
             },
             |p| end.manhattan_distance(*p),
         );
-        let search_outcome = searcher.by_ref().find(|p| *p == end);
+        let search_outcome = searcher.by_ref().inspect(|p| println!("Exploring {p} on the way to {end}")).find(|p| *p == end);
         match search_outcome {
             None => None,
             Some(p) => Some(
@@ -500,7 +501,7 @@ impl GridPointConverter {
         let grid_start = self.meters2cell(start);
         let grid_end = self.meters2cell(end);
         (grid_start[0]..=grid_end[0])
-            .zip(grid_start[1]..=grid_end[1])
+            .cartesian_product(grid_start[1]..=grid_end[1])
             .map(|(col, row)| GridPoint::new([col, row]))
             .filter(move |gp| self.cell2meters(*gp).euclidean_distance(center) <= radius)
     }

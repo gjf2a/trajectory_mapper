@@ -1,0 +1,73 @@
+
+running 8 tests
+test odometry_math::tests::test_modulo ... ok
+test point::tests::test_neighbor ... ok
+test tests::test1 ... FAILED
+test tests::test2 ... FAILED
+test tests::test3 ... FAILED
+test tests::test_edge ... FAILED
+test tests::test_parse ... ok
+test search_iter::tests::test_a_star ... ok
+
+failures:
+
+---- tests::test1 stdout ----
+00000000000000000000
+00000000000000000000
+00000010000000000000
+00000001000000000000
+00000000100000000000
+00000000010000000000
+00000000001000000000
+00000000000000000000
+
+
+thread 'tests::test1' panicked at src/lib.rs:681:9:
+assertion `left == right` failed
+  left: "00000000000000000000\n00000000000000000000\n00000010000000000000\n00000001000000000000\n00000000100000000000\n00000000010000000000\n00000000001000000000\n00000000000000000000\n"
+ right: "00000000000000000000\n00000000100000000000\n00000011111000000000\n00000011111000000000\n00000111111100000000\n00000011111000000000\n00000011111000000000\n00000000100000000000\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::test2 stdout ----
+00000
+00100
+
+
+thread 'tests::test2' panicked at src/lib.rs:694:9:
+assertion `left == right` failed
+  left: "00000\n00100\n"
+ right: "00100\n00000\n"
+
+---- tests::test3 stdout ----
+0000000000
+0001000000
+0000100000
+0000010000
+
+
+thread 'tests::test3' panicked at src/lib.rs:711:9:
+assertion `left == right` failed
+  left: "0000000000\n0001000000\n0000100000\n0000010000\n"
+ right: "0000000000\n0001110000\n0001110000\n0001110000\n"
+
+---- tests::test_edge stdout ----
+0000000000
+0000000001
+0000000000
+0000000000
+
+
+thread 'tests::test_edge' panicked at src/lib.rs:725:9:
+assertion `left == right` failed
+  left: "0000000000\n0000000001\n0000000000\n0000000000\n"
+ right: "0000000001\n0000000001\n0000000000\n0000000000\n"
+
+
+failures:
+    tests::test1
+    tests::test2
+    tests::test3
+    tests::test_edge
+
+test result: FAILED. 4 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

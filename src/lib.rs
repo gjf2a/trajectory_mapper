@@ -415,37 +415,49 @@ impl TrajectoryMap {
     }
 
     pub fn grid_str(&self, columns: i32, rows: i32) -> String {
+        self.grid_str_extra(columns, rows, |_, _, _, _| None)
+    }
+
+    pub fn grid_str_extra<C: Fn(u64, u64, u64, u64) -> Option<char>>(
+        &self,
+        columns: i32,
+        rows: i32,
+        other_chars: C,
+    ) -> String {
         let grid_size = self.grid_size();
         let grid_rows = grid_size[1] as i32;
         let grid_cols = grid_size[0] as i32;
-        let row_grid_slice = round_quotient_up(grid_rows, rows);
-        let col_grid_slice = round_quotient_up(grid_cols, columns);
+        let row_grid_slice = round_quotient_up(grid_rows, rows) as u64;
+        let col_grid_slice = round_quotient_up(grid_cols, columns) as u64;
         let mut grid_str = String::new();
         for row in 0..rows {
-            let grid_row = row * grid_rows / rows;
+            let grid_row = (row * grid_rows / rows) as u64;
             for col in 0..columns {
-                let grid_col = col * grid_cols / columns;
-                let free = self.free_space_within(
-                    grid_row as u64,
-                    grid_col as u64,
-                    row_grid_slice as u64,
-                    col_grid_slice as u64,
-                );
-                let obstacle = self.obstacle_within(
-                    grid_row as u64,
-                    grid_col as u64,
-                    row_grid_slice as u64,
-                    col_grid_slice as u64,
-                );
-                let c = if free && obstacle {
-                    '?'
-                } else if obstacle {
-                    '#'
-                } else if free {
-                    'o'
-                } else {
-                    '.'
-                };
+                let grid_col = (col * grid_cols / columns) as u64;
+                let c = other_chars(grid_row, grid_col, row_grid_slice, col_grid_slice)
+                    .unwrap_or_else(|| {
+                        let free = self.free_space_within(
+                            grid_row,
+                            grid_col,
+                            row_grid_slice,
+                            col_grid_slice,
+                        );
+                        let obstacle = self.obstacle_within(
+                            grid_row,
+                            grid_col,
+                            row_grid_slice,
+                            col_grid_slice,
+                        );
+                        if free && obstacle {
+                            '?'
+                        } else if obstacle {
+                            '#'
+                        } else if free {
+                            'o'
+                        } else {
+                            '.'
+                        }
+                    });
                 grid_str.push(c);
             }
             grid_str.push('\n');

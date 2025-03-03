@@ -269,7 +269,7 @@ impl TrajectoryMap {
                         self.converter
                             .circle_grid_points(
                                 self.converter.cell2meters(*p),
-                                self.robot_radius_meters,
+                                self.robot_radius_meters / 2.0, // EXPERIMENT
                             )
                             .all(|n| self.free_space.is_set(n) && !self.obstacles.is_set(n))
                     })
@@ -278,7 +278,10 @@ impl TrajectoryMap {
             },
             |p| end.manhattan_distance(*p),
         );
-        let search_outcome = searcher.by_ref().inspect(|p| println!("Exploring {p} on the way to {end}")).find(|p| *p == end);
+        let search_outcome = searcher
+            .by_ref()
+            .inspect(|p| println!("Exploring {p} on the way to {end}"))
+            .find(|p| *p == end);
         match search_outcome {
             None => None,
             Some(p) => Some(

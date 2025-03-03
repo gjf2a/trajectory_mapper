@@ -221,6 +221,18 @@ impl TrajectoryMap {
         self.cumulative_alignment += current_move_alignment(self);
     }
 
+    pub fn robot_position(&self) -> Option<RobotPose> {
+        self.position
+    }
+
+    pub fn start_cell(&self) -> Option<GridPoint> {
+        self.position.map(|p| self.converter.meters2cell(p.pos))
+    }
+
+    pub fn width_height(&self) -> (f64, f64) {
+        (self.converter.width, self.converter.height)
+    }
+
     pub fn meters_per_cell(&self) -> f64 {
         self.converter.meters_per_cell
     }
@@ -267,7 +279,7 @@ impl TrajectoryMap {
     }
 
     pub fn reachable(&self) -> impl Iterator<Item=GridPoint> {
-        let start = self.converter.meters2cell(self.position.unwrap().pos);
+        let start = self.start_cell().unwrap();
         BfsIter::new(
             start,
             |p| {
@@ -371,7 +383,12 @@ impl TrajectoryMap {
                     }
                     "'columns'" => columns = Some(value.parse::<u64>().unwrap()),
                     "'rows'" => rows = Some(value.parse::<u64>().unwrap()),
-                    "'meters_per_cell'" => meters_per_cell = Some(value.parse::<f64>().unwrap()),
+                    "'meters_per_cell'" => {
+                        let mpc = value.parse::<f64>().unwrap();
+                        result.converter.width = columns.unwrap() as f64 * mpc;
+                        result.converter.height = rows.unwrap() as f64 * mpc;
+                        meters_per_cell = Some(mpc);
+                    }
                     "'free_space_grid'" => {
                         result.free_space = BinaryGrid::from_python_dict(
                             columns.unwrap(),
@@ -526,6 +543,12 @@ impl GridPointConverter {
             width,
             height,
         }
+    }
+
+    pub fn alt_meters2cell(&self, meters: FloatPoint) -> GridPoint {
+        let columns = (self.width / self.meters_per_cell) as u64;
+        let rows = (self.height / self.meters_per_cell) as u64;
+        GridPoint::new([(meters[0] / self.meters_per_cell) as u64 + columns / 2, (meters[1] / self.meters_per_cell) as u64 + rows / 2])
     }
 
     pub fn cell2meters(&self, cell: GridPoint) -> FloatPoint {
@@ -714,7 +737,7 @@ impl BinaryGrid {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BinaryGrid, TrajectoryMap, point::FloatPoint};
+    use crate::{point::{FloatPoint, GridPoint}, BinaryGrid, GridPointConverter, TrajectoryMap};
 
     const CIRCLE_1_STR: &str = "00000000000000000000
 00000000100000000000
@@ -786,5 +809,16 @@ mod tests {
         let map_input_str = std::fs::read_to_string("first_improved_map_reformatted").unwrap();
         let map = TrajectoryMap::from_python_dict(map_input_str.as_str());
         assert_eq!(map_input_str, map.as_python_dict().unwrap());
+    }
+
+    #[test]
+    fn test_converter() {
+        let converter = GridPointConverter::new(1.25, 10.0, 10.0);
+        for (expected, input) in [
+            (GridPoint::new([0, 2]), FloatPoint::new([-5.0, -2.5]))
+            ] {
+                assert_eq!(expected, converter.meters2cell(input));
+                assert_eq!(input, converter.cell2meters(expected));
+        }
     }
 }

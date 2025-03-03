@@ -9,7 +9,7 @@ freespace and obstacles.
 
 use std::{
     cmp::max,
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     fmt::Display,
     fs::File,
     io::{BufRead, BufReader},
@@ -24,7 +24,7 @@ use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
 use pest::Parser;
 use pest_derive::Parser;
-use search_iter::PrioritySearchIter;
+use search_iter::{BfsIter, PrioritySearchIter};
 
 #[derive(Parser)]
 #[grammar = "map_python_dictionary.pest"]
@@ -266,6 +266,24 @@ impl TrajectoryMap {
         )
     }
 
+    pub fn reachable(&self) -> impl Iterator<Item=GridPoint> {
+        let start = self.converter.meters2cell(self.position.unwrap().pos);
+        BfsIter::new(
+            start,
+            |p| {
+                p.manhattan_neighbors()
+                    .filter(|p| {
+                        self.converter
+                            .circle_grid_points(
+                                self.converter.cell2meters(*p),
+                                self.robot_radius_meters / 2.0, // EXPERIMENT
+                            )
+                            .all(|n| self.free_space.is_set(n) && !self.obstacles.is_set(n))
+                    })
+                    .collect()
+            })
+    }
+
     pub fn path_to(&self, goal: FloatPoint) -> Option<Vec<FloatPoint>> {
         let start = self.free_space.meters2cell(self.position.unwrap().pos);
         let end = self.free_space.meters2cell(goal);
@@ -300,38 +318,6 @@ impl TrajectoryMap {
                     .collect(),
             ),
         }
-    }
-
-    pub fn free_space_within(
-        &self,
-        grid_row: u64,
-        grid_col: u64,
-        row_grid_slice: u64,
-        col_grid_slice: u64,
-    ) -> bool {
-        within(
-            &self.free_space,
-            grid_row,
-            grid_col,
-            row_grid_slice,
-            col_grid_slice,
-        )
-    }
-
-    pub fn obstacle_within(
-        &self,
-        grid_row: u64,
-        grid_col: u64,
-        row_grid_slice: u64,
-        col_grid_slice: u64,
-    ) -> bool {
-        within(
-            &self.obstacles,
-            grid_row,
-            grid_col,
-            row_grid_slice,
-            col_grid_slice,
-        )
     }
 
     pub fn estimate(&self) -> Option<RobotPose> {
@@ -415,10 +401,21 @@ impl TrajectoryMap {
     }
 
     pub fn grid_str(&self, columns: i32, rows: i32) -> String {
-        self.grid_str_extra(columns, rows, |_, _, _, _| None)
+        self.grid_str_extra(columns, rows, |_| None)
     }
 
-    pub fn grid_str_extra<C: Fn(u64, u64, u64, u64) -> Option<char>>(
+    pub fn grid_str_reachable(&self, columns: i32, rows: i32) -> String {
+        let reachable = self.reachable().collect::<HashSet<_>>();
+        self.grid_str_extra(columns, rows, |sub| {
+            if sub.coords().any(|c| reachable.contains(&c)) {
+                Some('!')
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn grid_str_extra<C: Fn(BinaryGridWindow) -> Option<char>>(
         &self,
         columns: i32,
         rows: i32,
@@ -434,20 +431,11 @@ impl TrajectoryMap {
             let grid_row = (row * grid_rows / rows) as u64;
             for col in 0..columns {
                 let grid_col = (col * grid_cols / columns) as u64;
-                let c = other_chars(grid_row, grid_col, row_grid_slice, col_grid_slice)
+                let sub = BinaryGridWindow {grid_row, grid_col, row_grid_slice, col_grid_slice};
+                let c = other_chars(sub)
                     .unwrap_or_else(|| {
-                        let free = self.free_space_within(
-                            grid_row,
-                            grid_col,
-                            row_grid_slice,
-                            col_grid_slice,
-                        );
-                        let obstacle = self.obstacle_within(
-                            grid_row,
-                            grid_col,
-                            row_grid_slice,
-                            col_grid_slice,
-                        );
+                        let free = self.free_space.any_1_in(sub);
+                        let obstacle = self.obstacles.any_1_in(sub);                        
                         if free && obstacle {
                             '?'
                         } else if obstacle {
@@ -463,6 +451,24 @@ impl TrajectoryMap {
             grid_str.push('\n');
         }
         grid_str
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct BinaryGridWindow {
+    grid_row: u64,
+    grid_col: u64,
+    row_grid_slice: u64,
+    col_grid_slice: u64,
+}
+
+impl BinaryGridWindow {
+    pub fn coords(&self) -> impl Iterator<Item=GridPoint> {
+        (self.grid_col..self.grid_col + self.col_grid_slice).cartesian_product(self.grid_row..self.grid_row + self.row_grid_slice).map(|(col, row)| GridPoint::new([col, row]))
+    }
+
+    pub fn contains(&self, gp: GridPoint) -> bool {
+        self.coords().any(|c| c == gp)
     }
 }
 
@@ -499,23 +505,6 @@ fn current_move_alignment(map: &TrajectoryMap) -> f64 {
             }) as f64
         }
     }
-}
-
-fn within(
-    grid: &BinaryGrid,
-    grid_row: u64,
-    grid_col: u64,
-    row_grid_slice: u64,
-    col_grid_slice: u64,
-) -> bool {
-    for r in grid_row..grid_row + row_grid_slice {
-        for c in grid_col..grid_col + col_grid_slice {
-            if grid.is_set(GridPoint::new([c, r])) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 fn vec2pyliststr<T: Display>(v: &Vec<T>) -> String {
@@ -676,6 +665,10 @@ impl BinaryGrid {
             }
         }
         None
+    }
+
+    pub fn any_1_in(&self, sub: BinaryGridWindow) -> bool {
+        sub.coords().any(|c| self.is_set(c))
     }
 
     pub fn in_bounds(&self, gp: GridPoint) -> bool {

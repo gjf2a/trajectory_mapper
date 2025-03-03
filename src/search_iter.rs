@@ -196,7 +196,8 @@ mod tests {
         let map = std::fs::read_to_string("first_improved_map").unwrap();
         let map = TrajectoryMap::from_python_dict(map.as_str());
         println!("{:?}", map.position);
-        let goal = FloatPoint::new([1.5, -0.4]);
+        //let goal = FloatPoint::new([0.3, -1.4]);
+        let goal = FloatPoint::new([0.9, -0.1]);
         let route = map.path_to(goal);
         assert!(route.is_some());
     }

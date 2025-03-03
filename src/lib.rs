@@ -288,7 +288,7 @@ impl TrajectoryMap {
                         self.converter
                             .circle_grid_points(
                                 self.converter.cell2meters(*p),
-                                self.robot_radius_meters / 2.0, // EXPERIMENT
+                                self.robot_radius_meters / 2.0,
                             )
                             .all(|n| self.free_space.is_set(n) && !self.obstacles.is_set(n))
                     })

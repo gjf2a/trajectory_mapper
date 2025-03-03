@@ -1,8 +1,6 @@
 use pancurses::{Input, endwin, initscr, noecho};
 use std::{collections::VecDeque, env};
-use trajectory_mapper::{
-    RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap, point::GridPoint,
-};
+use trajectory_mapper::{RobotMoveState, RobotPose, TrajectoryBuilder, TrajectoryMap};
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -72,53 +70,13 @@ fn visualize_map(
         let (mut rows, mut columns) = window.get_max_yx();
         rows -= 3;
         columns -= 1;
-        let grid_size = map.grid_size();
-        let grid_rows = grid_size[1] as i32;
-        let grid_cols = grid_size[0] as i32;
-        let row_grid_slice = round_quotient_up(grid_rows, rows);
-        let col_grid_slice = round_quotient_up(grid_cols, columns);
-        let mut grid_str = format!(
-            "{header} {}/{} points alignment: {:.2}\n",
+        let grid_str = format!(
+            "{header} {}/{} points alignment: {:.2}\n{}",
             total_points - points.len(),
             total_points,
             map.cumulative_alignment(),
+            map.grid_str(columns, rows)
         );
-        for row in 0..rows {
-            let grid_row = row * grid_rows / rows;
-            for col in 0..columns {
-                let grid_col = col * grid_cols / columns;
-                let free = map.free_space_within(
-                    grid_row as u64,
-                    grid_col as u64,
-                    row_grid_slice as u64,
-                    col_grid_slice as u64,
-                );
-                let obstacle = map.obstacle_within(
-                    grid_row as u64,
-                    grid_col as u64,
-                    row_grid_slice as u64,
-                    col_grid_slice as u64,
-                );
-                let frontier = free
-                    && map.has_unvisited_neighbor(&GridPoint::new([
-                        grid_col as u64,
-                        grid_row as u64,
-                    ]));
-                let c = if free && obstacle {
-                    '?'
-                } else if obstacle {
-                    '#'
-                } else if frontier {
-                    'F'
-                } else if free {
-                    'o'
-                } else {
-                    '.'
-                };
-                grid_str.push(c);
-            }
-            grid_str.push('\n');
-        }
 
         window.addstr(grid_str);
         match window.getch() {
@@ -141,12 +99,4 @@ fn visualize_map(
     }
 
     endwin();
-}
-
-fn round_quotient_up(dividend: i32, divisor: i32) -> i32 {
-    let mut quotient = dividend / divisor;
-    if dividend % divisor > 0 {
-        quotient += 1;
-    }
-    quotient
 }

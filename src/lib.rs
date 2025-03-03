@@ -682,7 +682,7 @@ mod tests {
         assert_eq!(format!("{grid}"), CIRCLE_1_STR);
     }
 
-    const CIRCLE_2_STR: &str = "00100\n00000\n";
+    const CIRCLE_2_STR: &str = "00000\n00100\n";
 
     #[test]
     fn test2() {

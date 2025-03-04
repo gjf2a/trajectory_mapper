@@ -1,7 +1,7 @@
 use std::{
     fmt::Display,
     iter::Sum,
-    ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
+    ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign}, str::FromStr,
 };
 
 use itertools::Itertools;
@@ -11,7 +11,7 @@ use trait_set::trait_set;
 use crate::{RobotMoveState, RobotPose};
 
 trait_set! {
-    pub trait NumType = Display + ToPrimitive + Default + Num + Copy + AddAssign + SubAssign + MulAssign + DivAssign + PartialOrd + Sum;
+    pub trait NumType = FromStr + Display + ToPrimitive + Default + Num + Copy + AddAssign + SubAssign + MulAssign + DivAssign + PartialOrd + Sum;
 }
 
 pub type GridPoint = Point<u64, 2>;
@@ -26,6 +26,24 @@ impl<N: NumType, const S: usize> Display for Point<N, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let joined = self.coords.map(|n| format!("{n}")).join(",");
         write!(f, "({joined})")
+    }
+}
+
+impl<N: NumType, const S: usize> FromStr for Point<N, S> {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        let parts = s[1..s.len() - 1].split(',').collect::<Vec<_>>();
+        if parts.len() == S {
+            let mut coords = [N::zero(); S];
+            for i in 0..S {
+                coords[i] = parts[i].trim().parse::<N>().map_err(|_| anyhow::anyhow!("Parse error when parsing '{}'", parts[i]))?;
+            }
+            Ok(Self::new(coords))
+        } else {
+            Err(anyhow::anyhow!("Expecting {S} values, but received {} values instead from {}", parts.len(), s))
+        }
     }
 }
 
@@ -223,5 +241,15 @@ mod tests {
             assert!(neighbors.contains(&np));
         }
         assert_eq!(neighbors.len(), expected.len());
+    }
+
+    #[test]
+    fn test_parse() {
+        for (x, y) in [(1, 2), (3, 4), (5, 6)] {
+            let text = format!("({x}, {y})");
+            let gp = text.parse::<GridPoint>().unwrap();
+            assert_eq!(gp[0], x);
+            assert_eq!(gp[1], y);
+        }
     }
 }

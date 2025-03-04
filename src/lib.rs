@@ -35,6 +35,7 @@ pub mod odometry_math;
 pub mod particle_filter;
 pub mod point;
 pub mod search_iter;
+pub mod executor;
 
 /*
 Eventually, I would like to create a ROS2 message like this:
@@ -292,11 +293,15 @@ impl TrajectoryMap {
     }
 
     pub fn reachable(&self) -> impl Iterator<Item = GridPoint> {
-        BfsIter::new(self.start_cell().unwrap(), |p| self.safe_travel_neighbors(p))
+        BfsIter::new(self.start_cell().unwrap(), |p| {
+            self.safe_travel_neighbors(p)
+        })
     }
 
-    pub fn path_to(&self, goal: FloatPoint) -> Option<Vec<FloatPoint>> {
-        let mut searcher = BfsIter::new(self.start_cell().unwrap(), |p| self.safe_travel_neighbors(p));
+    pub fn path_to(&self, goal: FloatPoint) -> Option<VecDeque<FloatPoint>> {
+        let mut searcher = BfsIter::new(self.start_cell().unwrap(), |p| {
+            self.safe_travel_neighbors(p)
+        });
         searcher
             .by_ref()
             // .min_by() comes from https://www.perplexity.ai/search/write-rust-code-to-find-the-el-_tDug23tSES6N1YyGVlIyw
@@ -817,7 +822,6 @@ mod tests {
         }
     }
 
-    
     #[test]
     fn test_path_to() {
         let map = std::fs::read_to_string("first_improved_map").unwrap();

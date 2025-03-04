@@ -25,4 +25,8 @@ impl PathPlanExecutor {
             self.path = path;
         }
     }
+
+    pub fn goal(&self) -> Option<FloatPoint> {
+        self.path.back().copied()
+    }
 }

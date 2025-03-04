@@ -11,18 +11,19 @@ use smol::{lock::Mutex, stream::Stream};
 fn main() {
     let args = cmd::ArgVals::default();
     if args.len() < 2 {
-        println!("Usage: navigator_node robot_name map_filename [-spin_time=millseconds] [-tolerance=meters]");
+        println!("Usage: navigator_node robot_name map_filename [-spin_time=millseconds] [-waypoint_margin=meters] [-replan_margin=meters]");
     } else {
         let period = args.get_value("-spin_time").unwrap_or(100);
-        let tolerance = args.get_value("-tolerance").unwrap_or(0.1);
+        let waypoint_margin = args.get_value("-waypoint_margin").unwrap_or(0.1);
+        let replan_margin = args.get_value("-replan_margin").unwrap_or(0.5);
         let map = TrajectoryMap::from_python_dict(fs::read_to_string(args.get_symbol(1)).unwrap().as_str());
-        if let Err(e) = runner(args.get_symbol(0), map, period, tolerance) {
+        if let Err(e) = runner(args.get_symbol(0), map, period, waypoint_margin, replan_margin) {
             println!("Unrecoverable error: {e}");
         }
     }
 }
 
-fn runner(robot_name: &str, map: TrajectoryMap, period: u64, tolerance: f64) -> anyhow::Result<()> {
+fn runner(robot_name: &str, map: TrajectoryMap, period: u64, waypoint_margin: f64, replan_margin: f64) -> anyhow::Result<()> {
     let odom_topic = format!("/{robot_name}/odom");
     let incoming_goal_topic = format!("/{robot_name}_goal");
     let outgoing_waypoint_topic = format!("/{robot_name}_waypoints");
@@ -46,7 +47,7 @@ fn runner(robot_name: &str, map: TrajectoryMap, period: u64, tolerance: f64) -> 
     
     smol::block_on(async {
         smol::spawn(goal_handler(goal_subscriber, executor.clone())).detach();
-        smol::spawn(odom_handler(odom_subscriber, executor.clone(), tolerance, publisher)).detach();
+        smol::spawn(odom_handler(odom_subscriber, executor.clone(), waypoint_margin, replan_margin, publisher)).detach();
         while running.load() {
             node.spin_once(std::time::Duration::from_millis(period));
         }
@@ -60,7 +61,8 @@ fn runner(robot_name: &str, map: TrajectoryMap, period: u64, tolerance: f64) -> 
 async fn odom_handler<S>(
     mut odom_subscriber: S,
     executor: Arc<Mutex<PathPlanExecutor>>,
-    tolerance: f64,
+    waypoint_margin: f64,
+    replan_margin: f64,
     publisher: Publisher<Ros2String>,
 ) where
     S: Stream<Item = Odometry> + Unpin,
@@ -70,8 +72,12 @@ async fn odom_handler<S>(
             let mut executor = executor.lock().await;
             if let Some(waypoint) = executor.waypoint() {
                 let pose: RobotPose = odom_msg.into();
-                if waypoint.euclidean_distance(pose.pos) < tolerance {
+                let distance = waypoint.euclidean_distance(pose.pos);
+                if distance < waypoint_margin {
                     executor.advance();
+                } else if distance > replan_margin {
+                    let goal = executor.goal().unwrap();
+                    executor.make_plan(goal);
                 }
             }
             

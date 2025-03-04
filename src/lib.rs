@@ -24,7 +24,7 @@ use r2r::{geometry_msgs::msg::TwistStamped, nav_msgs::msg::Odometry};
 
 use pest::Parser;
 use pest_derive::Parser;
-use search_iter::{BfsIter, PrioritySearchIter};
+use search_iter::BfsIter;
 
 #[derive(Parser)]
 #[grammar = "map_python_dictionary.pest"]
@@ -278,58 +278,43 @@ impl TrajectoryMap {
         )
     }
 
-    pub fn reachable(&self) -> impl Iterator<Item=GridPoint> {
-        let start = self.start_cell().unwrap();
-        BfsIter::new(
-            start,
-            |p| {
-                p.manhattan_neighbors()
-                    .filter(|p| {
-                        self.converter
-                            .circle_grid_points(
-                                self.converter.cell2meters(*p),
-                                self.robot_radius_meters / 2.0,
-                            )
-                            .all(|n| self.free_space.is_set(n) && !self.obstacles.is_set(n))
-                    })
-                    .collect()
+    fn safe_travel_neighbors(&self, p: &GridPoint) -> Vec<GridPoint> {
+        p.manhattan_neighbors()
+            .filter(|p| {
+                self.converter
+                    .circle_grid_points(
+                        self.converter.cell2meters(*p),
+                        self.robot_radius_meters / 2.0,
+                    )
+                    .all(|n| self.free_space.is_set(n) && !self.obstacles.is_set(n))
             })
+            .collect()
+    }
+
+    pub fn reachable(&self) -> impl Iterator<Item = GridPoint> {
+        BfsIter::new(self.start_cell().unwrap(), |p| self.safe_travel_neighbors(p))
     }
 
     pub fn path_to(&self, goal: FloatPoint) -> Option<Vec<FloatPoint>> {
-        let start = self.free_space.meters2cell(self.position.unwrap().pos);
-        let end = self.free_space.meters2cell(goal);
-        let mut searcher = PrioritySearchIter::a_star(
-            start,
-            |p| {
-                p.manhattan_neighbors()
-                    .filter(|p| {
-                        self.converter
-                            .circle_grid_points(
-                                self.converter.cell2meters(*p),
-                                self.robot_radius_meters / 2.0, // EXPERIMENT
-                            )
-                            .all(|n| self.free_space.is_set(n) && !self.obstacles.is_set(n))
-                    })
-                    .map(|p| (p, 1))
-                    .collect()
-            },
-            |p| end.manhattan_distance(*p),
-        );
-        let search_outcome = searcher
+        let mut searcher = BfsIter::new(self.start_cell().unwrap(), |p| self.safe_travel_neighbors(p));
+        searcher
             .by_ref()
-            .inspect(|p| println!("Exploring {p} on the way to {end}"))
-            .find(|p| *p == end);
-        match search_outcome {
-            None => None,
-            Some(p) => Some(
+            // .min_by() comes from https://www.perplexity.ai/search/write-rust-code-to-find-the-el-_tDug23tSES6N1YyGVlIyw
+            .min_by(|a, b| {
+                let a_dist = self.converter.cell2meters(*a).euclidean_distance(goal);
+                let b_dist = self.converter.cell2meters(*b).euclidean_distance(goal);
+                a_dist
+                    .partial_cmp(&b_dist)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|p| {
                 searcher
                     .path_back_from(&p)
                     .iter()
                     .map(|p| self.converter.cell2meters(*p))
-                    .collect(),
-            ),
-        }
+                    .rev()
+                    .collect()
+            })
     }
 
     pub fn estimate(&self) -> Option<RobotPose> {
@@ -448,21 +433,25 @@ impl TrajectoryMap {
             let grid_row = (row * grid_rows / rows) as u64;
             for col in 0..columns {
                 let grid_col = (col * grid_cols / columns) as u64;
-                let sub = BinaryGridWindow {grid_row, grid_col, row_grid_slice, col_grid_slice};
-                let c = other_chars(sub)
-                    .unwrap_or_else(|| {
-                        let free = self.free_space.any_1_in(sub);
-                        let obstacle = self.obstacles.any_1_in(sub);                        
-                        if free && obstacle {
-                            '?'
-                        } else if obstacle {
-                            '#'
-                        } else if free {
-                            'o'
-                        } else {
-                            '.'
-                        }
-                    });
+                let sub = BinaryGridWindow {
+                    grid_row,
+                    grid_col,
+                    row_grid_slice,
+                    col_grid_slice,
+                };
+                let c = other_chars(sub).unwrap_or_else(|| {
+                    let free = self.free_space.any_1_in(sub);
+                    let obstacle = self.obstacles.any_1_in(sub);
+                    if free && obstacle {
+                        '?'
+                    } else if obstacle {
+                        '#'
+                    } else if free {
+                        'o'
+                    } else {
+                        '.'
+                    }
+                });
                 grid_str.push(c);
             }
             grid_str.push('\n');
@@ -480,8 +469,10 @@ pub struct BinaryGridWindow {
 }
 
 impl BinaryGridWindow {
-    pub fn coords(&self) -> impl Iterator<Item=GridPoint> {
-        (self.grid_col..self.grid_col + self.col_grid_slice).cartesian_product(self.grid_row..self.grid_row + self.row_grid_slice).map(|(col, row)| GridPoint::new([col, row]))
+    pub fn coords(&self) -> impl Iterator<Item = GridPoint> {
+        (self.grid_col..self.grid_col + self.col_grid_slice)
+            .cartesian_product(self.grid_row..self.grid_row + self.row_grid_slice)
+            .map(|(col, row)| GridPoint::new([col, row]))
     }
 
     pub fn contains(&self, gp: GridPoint) -> bool {
@@ -548,7 +539,10 @@ impl GridPointConverter {
     pub fn alt_meters2cell(&self, meters: FloatPoint) -> GridPoint {
         let columns = (self.width / self.meters_per_cell) as u64;
         let rows = (self.height / self.meters_per_cell) as u64;
-        GridPoint::new([(meters[0] / self.meters_per_cell) as u64 + columns / 2, (meters[1] / self.meters_per_cell) as u64 + rows / 2])
+        GridPoint::new([
+            (meters[0] / self.meters_per_cell) as u64 + columns / 2,
+            (meters[1] / self.meters_per_cell) as u64 + rows / 2,
+        ])
     }
 
     pub fn cell2meters(&self, cell: GridPoint) -> FloatPoint {
@@ -737,7 +731,10 @@ impl BinaryGrid {
 
 #[cfg(test)]
 mod tests {
-    use crate::{point::{FloatPoint, GridPoint}, BinaryGrid, GridPointConverter, TrajectoryMap};
+    use crate::{
+        BinaryGrid, GridPointConverter, TrajectoryMap,
+        point::{FloatPoint, GridPoint},
+    };
 
     const CIRCLE_1_STR: &str = "00000000000000000000
 00000000100000000000
@@ -814,11 +811,44 @@ mod tests {
     #[test]
     fn test_converter() {
         let converter = GridPointConverter::new(1.25, 10.0, 10.0);
-        for (expected, input) in [
-            (GridPoint::new([0, 2]), FloatPoint::new([-5.0, -2.5]))
-            ] {
-                assert_eq!(expected, converter.meters2cell(input));
-                assert_eq!(input, converter.cell2meters(expected));
+        for (expected, input) in [(GridPoint::new([0, 2]), FloatPoint::new([-5.0, -2.5]))] {
+            assert_eq!(expected, converter.meters2cell(input));
+            assert_eq!(input, converter.cell2meters(expected));
         }
+    }
+
+    
+    #[test]
+    fn test_path_to() {
+        let map = std::fs::read_to_string("first_improved_map").unwrap();
+        let map = TrajectoryMap::from_python_dict(map.as_str());
+        let goal = FloatPoint::new([0.3, -1.4]);
+        //let goal = FloatPoint::new([0.9, -0.1]);
+        //let goal = FloatPoint::new([0.5, -1.1]);
+        let route = map.path_to(goal);
+        assert!(route.is_some());
+        println!("{route:?}");
+    }
+
+    #[test]
+    fn test_all_reachable() {
+        let map = std::fs::read_to_string("first_improved_map").unwrap();
+        let map = TrajectoryMap::from_python_dict(map.as_str());
+        let mut num_goals = 0;
+        let mut num_success = 0;
+        for goal in map.reachable().map(|r| map.converter.cell2meters(r)) {
+            num_goals += 1;
+            let route = map.path_to(goal);
+            if route.is_some() {
+                num_success += 1;
+                println!("succeeded: {goal}")
+            } else {
+                println!("failed: {goal}")
+            }
+        }
+        println!(
+            "{num_success}/{num_goals} ({} free)",
+            map.free_space.all_1s().len()
+        );
     }
 }

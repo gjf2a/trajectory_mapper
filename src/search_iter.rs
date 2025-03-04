@@ -187,22 +187,6 @@ impl<N: Estimator, T: SearchNode, S: FnMut(&T) -> Vec<(T, N)>, H: Fn(&T) -> N> I
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{TrajectoryMap, point::FloatPoint};
-
-    #[test]
-    fn test_a_star() {
-        let map = std::fs::read_to_string("first_improved_map").unwrap();
-        let map = TrajectoryMap::from_python_dict(map.as_str());
-        println!("{:?}", map.position);
-        //let goal = FloatPoint::new([0.3, -1.4]);
-        let goal = FloatPoint::new([0.9, -0.1]);
-        let route = map.path_to(goal);
-        assert!(route.is_some());
-    }
-}
-
 /*
 
 // At some point, I'll want to pay down some technical debt by rewriting these

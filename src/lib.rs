@@ -298,8 +298,8 @@ impl TrajectoryMap {
         })
     }
 
-    pub fn path_to(&self, goal: FloatPoint) -> Option<VecDeque<FloatPoint>> {
-        let mut searcher = BfsIter::new(self.start_cell().unwrap(), |p| {
+    pub fn path_to(&self, current: FloatPoint, goal: FloatPoint) -> Option<VecDeque<FloatPoint>> {
+        let mut searcher = BfsIter::new(self.converter.meters2cell(current), |p| {
             self.safe_travel_neighbors(p)
         });
         searcher
@@ -829,7 +829,7 @@ mod tests {
         let goal = FloatPoint::new([0.3, -1.4]);
         //let goal = FloatPoint::new([0.9, -0.1]);
         //let goal = FloatPoint::new([0.5, -1.1]);
-        let route = map.path_to(goal);
+        let route = map.path_to(map.position.unwrap().pos, goal);
         assert!(route.is_some());
         println!("{route:?}");
     }
@@ -842,7 +842,7 @@ mod tests {
         let mut num_success = 0;
         for goal in map.reachable().map(|r| map.converter.cell2meters(r)) {
             num_goals += 1;
-            let route = map.path_to(goal);
+            let route = map.path_to(map.position.unwrap().pos, goal);
             if route.is_some() {
                 num_success += 1;
                 println!("succeeded: {goal}")

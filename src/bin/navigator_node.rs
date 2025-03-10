@@ -70,9 +70,10 @@ async fn odom_handler<S>(
 {
     loop {
         if let Some(odom_msg) = odom_subscriber.next().await {
+            let pose: RobotPose = odom_msg.into();
             let mut executor = executor.lock().await;
+            executor.odom_reading(pose);
             if let Some(waypoint) = executor.waypoint() {
-                let pose: RobotPose = odom_msg.into();
                 let distance = waypoint.euclidean_distance(pose.pos);
                 if distance < waypoint_margin {
                     executor.advance();

@@ -19,6 +19,10 @@ impl ArgVals {
         self.simple_vals[i].as_str()
     }
 
+    pub fn has_symbol(&self, symbol: &str) -> bool {
+        self.simple_vals.iter().any(|s| s == symbol)
+    }
+
     pub fn get_value<N: Copy + FromStr>(&self, key: &str) -> Option<N> {
         self.mapped_vals
             .get(key)

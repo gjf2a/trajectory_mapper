@@ -16,6 +16,10 @@ impl PathPlanExecutor {
         self.path.front().copied()
     }
 
+    pub fn full_path_copy(&self) -> VecDeque<FloatPoint> {
+        self.path.clone()
+    }
+
     pub fn advance(&mut self) {
         self.path.pop_front();
     }

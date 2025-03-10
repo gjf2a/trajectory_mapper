@@ -83,7 +83,7 @@ async fn odom_handler<S>(
             
             let data = match executor.waypoint() {
                 None => format!("{{'status': 'stopped', 'waypoint': None}}"),
-                Some(waypoint) => format!("{{'status': 'navigating', 'waypoint': ({}, {})}}", waypoint[0], waypoint[1])
+                Some(waypoint) => format!("{{'status': 'navigating', 'waypoint': ({}, {}), 'full_path': {:?}}}", waypoint[0], waypoint[1], executor.full_path_copy())
             };
 
             let msg = Ros2String { data };

@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use itertools::Itertools;
+
 use crate::{point::FloatPoint, TrajectoryMap};
 
 pub struct PathPlanExecutor {
@@ -16,8 +18,8 @@ impl PathPlanExecutor {
         self.path.front().copied()
     }
 
-    pub fn full_path_copy(&self) -> VecDeque<FloatPoint> {
-        self.path.clone()
+    pub fn full_path_copy(&self) -> String {
+        format!("[{}]", self.path.iter().map(|p| format!{"{p}"}).join(","))
     }
 
     pub fn advance(&mut self) {

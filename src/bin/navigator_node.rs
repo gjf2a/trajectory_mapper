@@ -87,7 +87,7 @@ async fn odom_handler<S>(
                 Some(waypoint) => {
                     let mut pairs = format!("'status': 'navigating', 'waypoint': ({}, {})", waypoint[0], waypoint[1]);
                     if let Some(goal) = executor.goal() {
-                        let goal = format!(", goal: ({}, {})", goal[0], goal[1]);
+                        let goal = format!(", 'goal': ({}, {})", goal[0], goal[1]);
                         pairs.push_str(goal.as_str());
                     }
                     if share_full_path {

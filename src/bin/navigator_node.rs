@@ -91,7 +91,7 @@ async fn odom_handler<S>(
                         pairs.push_str(goal.as_str());
                     }
                     if share_full_path {
-                        let path = format!("'full_path': {}", executor.full_path_copy());
+                        let path = format!(", 'full_path': {}", executor.full_path_copy());
                         pairs.push_str(path.as_str());
                     }
                     format!("{{{pairs}}}")

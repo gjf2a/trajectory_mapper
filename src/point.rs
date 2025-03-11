@@ -1,7 +1,8 @@
 use std::{
     fmt::Display,
     iter::Sum,
-    ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign}, str::FromStr,
+    ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
+    str::FromStr,
 };
 
 use itertools::Itertools;
@@ -38,11 +39,18 @@ impl<N: NumType, const S: usize> FromStr for Point<N, S> {
         if parts.len() == S {
             let mut coords = [N::zero(); S];
             for i in 0..S {
-                coords[i] = parts[i].trim().parse::<N>().map_err(|_| anyhow::anyhow!("Parse error when parsing '{}'", parts[i]))?;
+                coords[i] = parts[i]
+                    .trim()
+                    .parse::<N>()
+                    .map_err(|_| anyhow::anyhow!("Parse error when parsing '{}'", parts[i]))?;
             }
             Ok(Self::new(coords))
         } else {
-            Err(anyhow::anyhow!("Expecting {S} values, but received {} values instead from {}", parts.len(), s))
+            Err(anyhow::anyhow!(
+                "Expecting {S} values, but received {} values instead from {}",
+                parts.len(),
+                s
+            ))
         }
     }
 }

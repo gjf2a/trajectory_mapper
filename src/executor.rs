@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use itertools::Itertools;
 
-use crate::{point::FloatPoint, RobotPose, TrajectoryMap};
+use crate::{RobotPose, TrajectoryMap, point::FloatPoint};
 
 pub struct PathPlanExecutor {
     map: TrajectoryMap,
@@ -12,7 +12,11 @@ pub struct PathPlanExecutor {
 
 impl PathPlanExecutor {
     pub fn new(map: TrajectoryMap) -> Self {
-        Self {map, path: VecDeque::default(), last_odom_reading: None}
+        Self {
+            map,
+            path: VecDeque::default(),
+            last_odom_reading: None,
+        }
     }
 
     pub fn waypoint(&self) -> Option<FloatPoint> {
@@ -20,7 +24,13 @@ impl PathPlanExecutor {
     }
 
     pub fn full_path_copy(&self) -> String {
-        format!("[{}]", self.path.iter().map(|p| format!{"{p}"}).join(","))
+        format!(
+            "[{}]",
+            self.path
+                .iter()
+                .map(|p| format!("({:.2}, {:.2})", p[0], p[1]))
+                .join(",")
+        )
     }
 
     pub fn advance(&mut self) {
@@ -49,7 +59,5 @@ impl PathPlanExecutor {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_generated_path() {
-
-    }
+    fn test_generated_path() {}
 }

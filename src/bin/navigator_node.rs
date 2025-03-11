@@ -1,29 +1,52 @@
-use std::fs;
 use futures::stream::StreamExt;
+use std::fs;
 
 use crossbeam::atomic::AtomicCell;
-use r2r::{nav_msgs::msg::Odometry, std_msgs::msg::String as Ros2String, Context, Node, Publisher, QosProfile};
-use trajectory_mapper::{cmd, executor::PathPlanExecutor, point::FloatPoint, RobotPose, TrajectoryMap};
+use r2r::{
+    Context, Node, Publisher, QosProfile, nav_msgs::msg::Odometry,
+    std_msgs::msg::String as Ros2String,
+};
+use trajectory_mapper::{
+    RobotPose, TrajectoryMap, cmd, executor::PathPlanExecutor, point::FloatPoint,
+};
 
-use std::sync::Arc;
 use smol::{lock::Mutex, stream::Stream};
+use std::sync::Arc;
 
 fn main() {
     let args = cmd::ArgVals::default();
     if args.len() < 2 {
-        println!("Usage: navigator_node robot_name map_filename [-spin_time=millseconds] [-waypoint_margin=meters] [-replan_margin=meters] [-share_full_path]");
+        println!(
+            "Usage: navigator_node robot_name map_filename [-spin_time=millseconds] [-waypoint_margin=meters] [-replan_margin=meters] [-share_full_path]"
+        );
     } else {
         let period = args.get_value("-spin_time").unwrap_or(100);
         let waypoint_margin = args.get_value("-waypoint_margin").unwrap_or(0.1);
         let replan_margin = args.get_value("-replan_margin").unwrap_or(0.5);
-        let map = TrajectoryMap::from_python_dict(fs::read_to_string(args.get_symbol(1)).unwrap().as_str());
-        if let Err(e) = runner(args.get_symbol(0), map, period, waypoint_margin, replan_margin, args.has_symbol("-share_full_path")) {
+        let map = TrajectoryMap::from_python_dict(
+            fs::read_to_string(args.get_symbol(1)).unwrap().as_str(),
+        );
+        if let Err(e) = runner(
+            args.get_symbol(0),
+            map,
+            period,
+            waypoint_margin,
+            replan_margin,
+            args.has_symbol("-share_full_path"),
+        ) {
             println!("Unrecoverable error: {e}");
         }
     }
 }
 
-fn runner(robot_name: &str, map: TrajectoryMap, period: u64, waypoint_margin: f64, replan_margin: f64, share_full_path: bool) -> anyhow::Result<()> {
+fn runner(
+    robot_name: &str,
+    map: TrajectoryMap,
+    period: u64,
+    waypoint_margin: f64,
+    replan_margin: f64,
+    share_full_path: bool,
+) -> anyhow::Result<()> {
     let odom_topic = format!("/{robot_name}/odom");
     let incoming_goal_topic = format!("/{robot_name}_goal");
     let outgoing_waypoint_topic = format!("/{robot_name}_waypoints");
@@ -32,22 +55,33 @@ fn runner(robot_name: &str, map: TrajectoryMap, period: u64, waypoint_margin: f6
     let mut node = Node::create(context, node_name.as_str(), "")?;
     let odom_subscriber =
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
-    let goal_subscriber = node.subscribe::<Ros2String>(incoming_goal_topic.as_str(), QosProfile::sensor_data())?;
-    
+    let goal_subscriber =
+        node.subscribe::<Ros2String>(incoming_goal_topic.as_str(), QosProfile::sensor_data())?;
+
     let executor = Arc::new(Mutex::new(PathPlanExecutor::new(map)));
 
     let running = Arc::new(AtomicCell::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || r.store(false))?;
 
-    let publisher =
-        node.create_publisher::<Ros2String>(outgoing_waypoint_topic.as_str(), QosProfile::sensor_data())?;
+    let publisher = node.create_publisher::<Ros2String>(
+        outgoing_waypoint_topic.as_str(),
+        QosProfile::sensor_data(),
+    )?;
     println!("Listening for goal locations on topic {incoming_goal_topic}.");
     println!("Publishing current waypoint on topic {outgoing_waypoint_topic}.");
-    
+
     smol::block_on(async {
         smol::spawn(goal_handler(goal_subscriber, executor.clone())).detach();
-        smol::spawn(odom_handler(odom_subscriber, executor.clone(), share_full_path, waypoint_margin, replan_margin, publisher)).detach();
+        smol::spawn(odom_handler(
+            odom_subscriber,
+            executor.clone(),
+            share_full_path,
+            waypoint_margin,
+            replan_margin,
+            publisher,
+        ))
+        .detach();
         while running.load() {
             node.spin_once(std::time::Duration::from_millis(period));
         }
@@ -82,11 +116,14 @@ async fn odom_handler<S>(
                     executor.make_plan(goal);
                 }
             }
-            
+
             let data = match executor.waypoint() {
                 None => format!("{{'status': 'stopped', 'waypoint': None}}"),
                 Some(waypoint) => {
-                    let mut pairs = format!("'status': 'navigating', 'waypoint': ({}, {})", waypoint[0], waypoint[1]);
+                    let mut pairs = format!(
+                        "'status': 'navigating', 'waypoint': ({}, {})",
+                        waypoint[0], waypoint[1]
+                    );
                     if let Some(goal) = executor.goal() {
                         let goal = format!(", 'goal': ({}, {})", goal[0], goal[1]);
                         pairs.push_str(goal.as_str());
@@ -115,7 +152,7 @@ where
         if let Some(goal_msg) = avoid_subscriber.next().await {
             let mut executor = executor.lock().await;
             if let Ok(goal) = goal_msg.data.parse::<FloatPoint>() {
-                executor.make_plan(goal);   
+                executor.make_plan(goal);
             }
         }
     }

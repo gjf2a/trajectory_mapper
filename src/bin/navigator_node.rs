@@ -3,8 +3,8 @@ use std::fs;
 
 use crossbeam::atomic::AtomicCell;
 use r2r::{
-    Context, Node, Publisher, QosProfile, nav_msgs::msg::Odometry,
-    std_msgs::msg::String as Ros2String,
+    Context, Node, Publisher, QosProfile, irobot_create_msgs::msg::HazardDetectionVector,
+    nav_msgs::msg::Odometry, std_msgs::msg::String as Ros2String,
 };
 use trajectory_mapper::{
     RobotPose, TrajectoryMap, cmd, executor::PathPlanExecutor, point::FloatPoint,
@@ -50,11 +50,14 @@ fn runner(
     let odom_topic = format!("/{robot_name}/odom");
     let incoming_goal_topic = format!("/{robot_name}_goal");
     let outgoing_waypoint_topic = format!("/{robot_name}_waypoints");
+    let hazard_topic = format!("/{robot_name}/hazard_detection");
     let node_name = format!("{robot_name}_navigator");
     let context = Context::create()?;
     let mut node = Node::create(context, node_name.as_str(), "")?;
     let odom_subscriber =
         node.subscribe::<Odometry>(odom_topic.as_str(), QosProfile::sensor_data())?;
+    let hazard_subscriber =
+        node.subscribe::<HazardDetectionVector>(hazard_topic.as_str(), QosProfile::sensor_data())?;
     let goal_subscriber =
         node.subscribe::<Ros2String>(incoming_goal_topic.as_str(), QosProfile::sensor_data())?;
 
@@ -73,6 +76,7 @@ fn runner(
 
     smol::block_on(async {
         smol::spawn(goal_handler(goal_subscriber, executor.clone())).detach();
+        smol::spawn(hazard_handler(hazard_subscriber, executor.clone())).detach();
         smol::spawn(odom_handler(
             odom_subscriber,
             executor.clone(),
@@ -124,6 +128,10 @@ async fn odom_handler<S>(
                         "'status': 'navigating', 'waypoint': ({}, {})",
                         waypoint[0], waypoint[1]
                     );
+                    if let Some(obstacle_str) = executor.additional_obstacles() {
+                        let obstacles = format!(", 'new_obstacles': {obstacle_str}");
+                        pairs.push_str(obstacles.as_str());
+                    }
                     if let Some(goal) = executor.goal() {
                         let goal = format!(", 'goal': ({}, {})", goal[0], goal[1]);
                         pairs.push_str(goal.as_str());
@@ -153,6 +161,27 @@ where
             let mut executor = executor.lock().await;
             if let Ok(goal) = goal_msg.data.parse::<FloatPoint>() {
                 executor.make_plan(goal);
+            }
+        }
+    }
+}
+
+async fn hazard_handler<S>(mut hazard_subscriber: S, executor: Arc<Mutex<PathPlanExecutor>>)
+where
+    S: Stream<Item = HazardDetectionVector> + Unpin,
+{
+    loop {
+        if let Some(hazard_msg) = hazard_subscriber.next().await {
+            let struck = hazard_msg.detections.iter().any(|d| {
+                let name = d.header.frame_id.as_str();
+                ["left", "front", "right"].iter().any(|n| name.contains(n))
+            });
+            if struck {
+                let mut executor = executor.lock().await;
+                executor.struck_obstacle();
+                if let Some(goal) = executor.goal() {
+                    executor.make_plan(goal);
+                }
             }
         }
     }

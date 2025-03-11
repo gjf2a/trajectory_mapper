@@ -1,13 +1,12 @@
 use std::collections::VecDeque;
 
-use itertools::Itertools;
-
-use crate::{RobotPose, TrajectoryMap, point::FloatPoint};
+use crate::{RobotPose, TrajectoryMap, point::FloatPoint, point_list_str};
 
 pub struct PathPlanExecutor {
     map: TrajectoryMap,
     path: VecDeque<FloatPoint>,
     last_odom_reading: Option<RobotPose>,
+    additional_obstacles: Vec<FloatPoint>,
 }
 
 impl PathPlanExecutor {
@@ -16,6 +15,7 @@ impl PathPlanExecutor {
             map,
             path: VecDeque::default(),
             last_odom_reading: None,
+            additional_obstacles: Vec::new(),
         }
     }
 
@@ -23,14 +23,23 @@ impl PathPlanExecutor {
         self.path.front().copied()
     }
 
+    pub fn struck_obstacle(&mut self) {
+        if let Some(last_pose) = self.last_odom_reading {
+            self.additional_obstacles
+                .push(self.map.add_obstacle(last_pose));
+        }
+    }
+
     pub fn full_path_copy(&self) -> String {
-        format!(
-            "[{}]",
-            self.path
-                .iter()
-                .map(|p| format!("({:.2}, {:.2})", p[0], p[1]))
-                .join(",")
-        )
+        point_list_str(self.path.iter().copied())
+    }
+
+    pub fn additional_obstacles(&self) -> Option<String> {
+        if self.additional_obstacles.len() > 0 {
+            Some(point_list_str(self.additional_obstacles.iter().copied()))
+        } else {
+            None
+        }
     }
 
     pub fn advance(&mut self) {

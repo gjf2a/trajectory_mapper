@@ -31,11 +31,11 @@ use search_iter::BfsIter;
 struct PythonMapParser;
 
 pub mod cmd;
+pub mod executor;
 pub mod odometry_math;
 pub mod particle_filter;
 pub mod point;
 pub mod search_iter;
-pub mod executor;
 
 /*
 Eventually, I would like to create a ROS2 message like this:
@@ -48,6 +48,13 @@ float64 meters_per_cell
 uint64[] free_space
 uint64[] obstacles
  */
+
+pub fn point_list_str<I: Iterator<Item = FloatPoint>>(iter: I) -> String {
+    let point_str = iter
+        .map(|p| format!("({:.2}, {:.2})", p[0], p[1]))
+        .join(",");
+    format!("[{point_str}]")
+}
 
 pub fn round_quotient_up(dividend: i32, divisor: i32) -> i32 {
     let mut quotient = dividend / divisor;
@@ -211,15 +218,20 @@ impl TrajectoryMap {
             RobotMoveState::Turning => {
                 if !self.turn_in_progress {
                     self.turn_in_progress = true;
-                    if let Some(prev) = self.position {
-                        let obstacle = prev.moved_forward(self.robot_radius_meters);
-                        self.obstacles
-                            .set(self.obstacles.meters2cell(obstacle.pos), true);
+                    if let Some(last_pose) = self.position {
+                        self.add_obstacle(last_pose);
                     }
                 }
             }
         }
         self.cumulative_alignment += current_move_alignment(self);
+    }
+
+    pub fn add_obstacle(&mut self, last_pose: RobotPose) -> FloatPoint {
+        let obstacle = last_pose.moved_forward(self.robot_radius_meters);
+        let obstacle_location = self.obstacles.meters2cell(obstacle.pos);
+        self.obstacles.set(obstacle_location, true);
+        obstacle.pos
     }
 
     pub fn robot_position(&self) -> Option<RobotPose> {

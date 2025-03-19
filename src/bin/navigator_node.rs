@@ -20,21 +20,26 @@ fn main() {
             "Usage: navigator_node robot_name map_filename [-spin_time=millseconds] [-waypoint_margin=meters] [-replan_margin=meters] [-share_full_path]"
         );
     } else {
-        let period = args.get_value("-spin_time").unwrap_or(100);
-        let waypoint_margin = args.get_value("-waypoint_margin").unwrap_or(0.1);
-        let replan_margin = args.get_value("-replan_margin").unwrap_or(0.5);
-        let map = TrajectoryMap::from_python_dict(
-            fs::read_to_string(args.get_symbol(1)).unwrap().as_str(),
-        );
-        if let Err(e) = runner(
-            args.get_symbol(0),
-            map,
-            period,
-            waypoint_margin,
-            replan_margin,
-            args.has_symbol("-share_full_path"),
-        ) {
-            println!("Unrecoverable error: {e}");
+        match fs::read_to_string(args.get_symbol(1)) {
+            Ok(map_text) => {
+                let period = args.get_value("-spin_time").unwrap_or(100);
+                let waypoint_margin = args.get_value("-waypoint_margin").unwrap_or(0.1);
+                let replan_margin = args.get_value("-replan_margin").unwrap_or(0.5);
+                let map = TrajectoryMap::from_python_dict(map_text.as_str());
+                if let Err(e) = runner(
+                    args.get_symbol(0),
+                    map,
+                    period,
+                    waypoint_margin,
+                    replan_margin,
+                    args.has_symbol("-share_full_path"),
+                ) {
+                    eprintln!("Unrecoverable error: {e}");
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading file {}: {e}", args.get_symbol(1));
+            }
         }
     }
 }
